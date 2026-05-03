@@ -17,6 +17,9 @@ from .const import SUN_CLUB_DISCOUNT, SUN_CLUB_END_HOUR, SUN_CLUB_START_HOUR
 from .service_helpers import madrid_midnight_range, service_date_range
 
 GET_INVOICE_DOCUMENT_SCHEMA = vol.Schema({vol.Required("invoice_id_hash"): cv.string})
+GET_INVOICE_DOCUMENT_BY_INDEX_SCHEMA = vol.Schema(
+    {vol.Required("index"): vol.All(int, vol.Range(min=0, max=23))}
+)
 GET_INVOICES_SCHEMA = vol.Schema(
     {vol.Optional("limit", default=12): vol.All(int, vol.Range(min=1, max=24))}
 )
@@ -50,6 +53,19 @@ def async_register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
+        "get_latest_invoice_document",
+        _async_get_invoice_document_by_index(hass, default_index=0),
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "get_invoice_document_by_index",
+        _async_get_invoice_document_by_index(hass),
+        schema=GET_INVOICE_DOCUMENT_BY_INDEX_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
         "get_measurements",
         _async_get_measurements(hass),
         schema=GET_MEASUREMENTS_SCHEMA,
@@ -69,6 +85,24 @@ def _async_get_invoice_document(hass: HomeAssistant):
                 translation_key="invoice_document_unavailable",
             ) from err
         return {"invoice_id_hash": document.invoice_id_hash, "url": document.url}
+
+    return handler
+
+
+def _async_get_invoice_document_by_index(hass: HomeAssistant, default_index: int | None = None):
+    async def handler(call: ServiceCall) -> ServiceResponse:
+        """Return a signed invoice URL by recent invoice index."""
+
+        runtime = first_runtime_data(hass)
+        index = default_index if default_index is not None else call.data["index"]
+        try:
+            document = await runtime.client.async_get_invoice_document_by_index(index)
+        except OctopusSpainError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invoice_document_unavailable",
+            ) from err
+        return {"index": index, "invoice_id_hash": document.invoice_id_hash, "url": document.url}
 
     return handler
 

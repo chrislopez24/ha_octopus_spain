@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.4 - 2026-05-03
+
+Invoice UX release.
+
+### Added
+
+- Human-readable invoice labels and indexes in `recent_invoices`.
+- `octopus_spain.get_latest_invoice_document` response service.
+- `octopus_spain.get_invoice_document_by_index` response service for dashboard cards.
+
+### Changed
+
+- Invoice document URLs remain generated only on demand and are not persisted in entity attributes.
+
 ## 0.0.3 - 2026-05-03
 
 Dashboard usability release.

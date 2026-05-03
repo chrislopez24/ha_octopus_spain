@@ -2,7 +2,7 @@
 
 Integración custom para Home Assistant compatible con HACS. Conecta con Octopus Energy España mediante la API GraphQL usada por Kraken y expone datos de cuenta, tarifa, facturas y consumo como entidades y servicios.
 
-> Estado: versión `0.0.3`. La API de Octopus Spain no es pública ni versionada para terceros, así que algún campo puede cambiar.
+> Estado: versión `0.0.4`. La API de Octopus Spain no es pública ni versionada para terceros, así que algún campo puede cambiar.
 
 ## Qué incluye
 
@@ -55,6 +55,8 @@ Servicios con respuesta:
 
 - `octopus_spain.get_invoices`: devuelve facturas recientes sin URLs firmadas.
 - `octopus_spain.get_invoice_document`: devuelve una URL temporal firmada para el PDF de una factura, usando `invoice_id_hash` del sensor `Facturas`.
+- `octopus_spain.get_latest_invoice_document`: devuelve bajo demanda el PDF de la factura más reciente.
+- `octopus_spain.get_invoice_document_by_index`: devuelve bajo demanda el PDF de una factura usando el `index` de `recent_invoices`.
 - `octopus_spain.get_measurements`: devuelve mediciones por rango en `DAY_INTERVAL` o `HOUR_INTERVAL`.
 
 Ejemplo para obtener el PDF de una factura:

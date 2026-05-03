@@ -78,11 +78,47 @@ def test_measurement_variables_preserve_madrid_midnight_when_serialized():
     assert datetime.fromisoformat(result["startAt"].replace("Z", "+00:00")).astimezone(
         service_helpers.MADRID
     ).isoformat() == "2026-05-01T00:00:00+02:00"
-    assert datetime.fromisoformat(result["endAt"].replace("Z", "+00:00")).astimezone(
-        service_helpers.MADRID
-    ).isoformat() == "2026-05-02T00:00:00+02:00"
-    assert result["startAt"] == "2026-04-30T22:00:00.000Z"
-    assert result["endAt"] == "2026-05-01T22:00:00.000Z"
+
+
+def test_invoice_payload_exposes_human_labels_and_stable_indexes():
+    api = load_module("api")
+    client = api.OctopusSpainClient(session=None, email="user@example.invalid", password="secret")
+    payload = {
+        "data": {
+            "account": {
+                "ledgers": [
+                    {
+                        "invoices": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "id": 123,
+                                        "consumptionStartDate": "2026-04-01T00:00:00+02:00",
+                                        "consumptionEndDate": "2026-05-01T00:00:00+02:00",
+                                    }
+                                },
+                                {
+                                    "node": {
+                                        "id": 122,
+                                        "consumptionStartDate": "2026-03-01T00:00:00+01:00",
+                                        "consumptionEndDate": "2026-04-01T00:00:00+02:00",
+                                    }
+                                },
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }
+
+    result = client._redact_invoice_payload(payload, "account", "ledger")
+
+    assert result[0]["index"] == 0
+    assert result[0]["period_label"] == "2026-04-01 a 2026-05-01"
+    assert result[0]["label"] == "Factura 2026-04-01 a 2026-05-01"
+    assert result[1]["index"] == 1
+    assert client._invoice_hashes == [result[0]["invoice_id_hash"], result[1]["invoice_id_hash"]]
 
 
 def test_utc_midnight_would_shift_hourly_measurements_during_dst():

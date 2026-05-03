@@ -18,6 +18,20 @@ get_invoices:
           max: 24
           mode: box
 
+get_latest_invoice_document:
+  fields: {}
+
+get_invoice_document_by_index:
+  fields:
+    index:
+      required: true
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 23
+          mode: box
+
 get_measurements:
   fields:
     start_date:

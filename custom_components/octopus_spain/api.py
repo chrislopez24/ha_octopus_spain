@@ -61,6 +61,12 @@ def _iso_z(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def _invoice_period_label(period_start: str | None, period_end: str | None) -> str | None:
+    if period_start and period_end:
+        return f"{period_start} a {period_end}"
+    return period_start or period_end
+
+
 class OctopusSpainClient:
     """Purpose-built async client for the observed Kraken GraphQL API."""
 
@@ -73,6 +79,7 @@ class OctopusSpainClient:
         self._token: str | None = None
         self._invoice_url_cache: dict[str, str] = {}
         self._invoice_id_cache: dict[str, int] = {}
+        self._invoice_hashes: list[str] = []
         self._account_number: str | None = None
         self._ledger_number: str | None = None
 
@@ -157,6 +164,13 @@ class OctopusSpainClient:
         url = await self._async_fetch_bill_url(self._account_number, self._ledger_number, invoice_id)
         self._invoice_url_cache[invoice_id_hash] = url
         return InvoiceDocument(invoice_id_hash=invoice_id_hash, url=url)
+
+    async def async_get_invoice_document_by_index(self, index: int) -> InvoiceDocument:
+        """Return a temporary signed invoice URL by recent invoice index."""
+
+        if index < 0 or index >= len(self._invoice_hashes):
+            raise OctopusSpainError("Invoice index is not available; refresh invoices first")
+        return await self.async_get_invoice_document(self._invoice_hashes[index])
 
     async def async_credits(self, account_number: str, ledger_number: str | None) -> dict[str, Any]:
         """Fetch credit transaction summary without exposing transaction IDs."""
@@ -326,10 +340,15 @@ class OctopusSpainClient:
     ) -> list[dict[str, Any]]:
         ledgers = (((payload.get("data") or {}).get("account") or {}).get("ledgers")) or []
         invoices = (((ledgers[0].get("invoices") or {}).get("edges")) if ledgers else []) or []
-        return [self._redact_invoice_node(edge.get("node") or {}, account_number, ledger_number) for edge in invoices]
+        redacted = [
+            self._redact_invoice_node(index, edge.get("node") or {}, account_number, ledger_number)
+            for index, edge in enumerate(invoices)
+        ]
+        self._invoice_hashes = [invoice["invoice_id_hash"] for invoice in redacted if invoice.get("invoice_id_hash")]
+        return redacted
 
     def _redact_invoice_node(
-        self, node: dict[str, Any], account_number: str, ledger_number: str
+        self, index: int, node: dict[str, Any], account_number: str, ledger_number: str
     ) -> dict[str, Any]:
         raw_invoice_id = node.get("id")
         invoice_id = str(raw_invoice_id or node.get("number") or "")
@@ -341,10 +360,16 @@ class OctopusSpainClient:
             self._ledger_number = ledger_number
         if invoice_id and pdf_url:
             self._invoice_url_cache[invoice_hash] = pdf_url
+        period_start = self._date_only(node.get("consumptionStartDate"))
+        period_end = self._date_only(node.get("consumptionEndDate"))
+        period_label = _invoice_period_label(period_start, period_end)
         return {
+            "index": index,
             "invoice_id_hash": invoice_hash,
-            "period_start": self._date_only(node.get("consumptionStartDate")),
-            "period_end": self._date_only(node.get("consumptionEndDate")),
+            "label": f"Factura {period_label}" if period_label else f"Factura #{index + 1}",
+            "period_label": period_label,
+            "period_start": period_start,
+            "period_end": period_end,
             "document_available": bool(pdf_url or raw_invoice_id),
         }
 

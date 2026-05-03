@@ -172,6 +172,20 @@
         }
       }
     },
+    "get_latest_invoice_document": {
+      "name": "Obtener última factura",
+      "description": "Devuelve bajo demanda una URL temporal para el PDF de la factura más reciente."
+    },
+    "get_invoice_document_by_index": {
+      "name": "Obtener factura por índice",
+      "description": "Devuelve bajo demanda una URL temporal para una factura de recent_invoices usando su índice.",
+      "fields": {
+        "index": {
+          "name": "Índice",
+          "description": "Índice mostrado en recent_invoices. 0 es la factura más reciente."
+        }
+      }
+    },
     "get_measurements": {
       "name": "Obtener mediciones",
       "description": "Devuelve consumo, coste cuando Octopus lo expone y series agregadas para pintar gráficas o automatizaciones.",
