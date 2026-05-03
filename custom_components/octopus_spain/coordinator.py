@@ -48,7 +48,7 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
             name=DOMAIN,
             config_entry=entry,
             update_interval=UPDATE_INTERVAL,
-            always_update=False,
+            always_update=True,
         )
         self.client = client
         self.selection = self._selection_from_entry(entry)

@@ -13,7 +13,7 @@ GRAPHQL_ENDPOINT = "https://api.oees-kraken.energy/v1/graphql/"
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
-UPDATE_INTERVAL = timedelta(hours=6)
+UPDATE_INTERVAL = timedelta(hours=1)
 INVOICE_CACHE_LIMIT = 12
 SUN_CLUB_START_HOUR = 12
 SUN_CLUB_END_HOUR = 18

@@ -98,6 +98,57 @@ def estimated_energy_costs_from_hourly(
     }
 
 
+def latest_period_consumption(period_series: dict[str, Any], period: str) -> float | None:
+    """Return the latest complete day consumption for a period split."""
+
+    latest = _latest_row(period_series.get("daily") or [])
+    return _period_consumption_value(latest, period)
+
+
+def current_month_period_consumption(
+    period_series: dict[str, Any], period: str, now: datetime | None = None
+) -> float | None:
+    """Return current month consumption for a period split."""
+
+    month_key = (now or datetime.now()).strftime("%Y-%m")
+    row = _row_by_key(period_series.get("monthly") or [], "period", month_key)
+    return _period_consumption_value(row, period)
+
+
+def current_month_estimated_cost(
+    costs_by_date: dict[str, Any], now: datetime | None = None
+) -> float | None:
+    """Return estimated energy-only cost for complete days in the current month."""
+
+    month_key = (now or datetime.now()).strftime("%Y-%m")
+    values = [_float_or_none(value) for key, value in costs_by_date.items() if str(key).startswith(month_key)]
+    costs = [value for value in values if value is not None]
+    if not costs:
+        return None
+    return round(sum(costs), 6)
+
+
+def average_daily_consumption(series: dict[str, Any], days: int) -> float | None:
+    """Return average daily kWh over the latest available daily samples."""
+
+    rows = _latest_rows(series.get("daily") or [], days)
+    values = [_float_or_none(row.get("kwh")) for row in rows]
+    kwh_values = [value for value in values if value is not None]
+    if not kwh_values:
+        return None
+    return round(sum(kwh_values) / len(kwh_values), 6)
+
+
+def average_daily_cost(costs_by_date: dict[str, Any], days: int) -> float | None:
+    """Return average estimated daily cost over the latest available dates."""
+
+    rows = sorted((str(key), _float_or_none(value)) for key, value in costs_by_date.items())
+    values = [value for _key, value in rows[-days:] if value is not None]
+    if not values:
+        return None
+    return round(sum(values) / len(values), 6)
+
+
 def normalize_measurement_points(
     points: list[dict[str, Any]], *, complete_daily_only: bool = False
 ) -> list[MeasurementPoint]:
@@ -257,6 +308,28 @@ def _sum_cost(points: Iterable[MeasurementPoint]) -> float | None:
     if not values:
         return None
     return round(sum(values), 6)
+
+
+def _latest_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    if not rows:
+        return {}
+    return sorted(rows, key=lambda row: str(row.get("date") or row.get("period") or ""))[-1]
+
+
+def _latest_rows(rows: list[dict[str, Any]], count: int) -> list[dict[str, Any]]:
+    return sorted(rows, key=lambda row: str(row.get("date") or row.get("period") or ""))[-count:]
+
+
+def _row_by_key(rows: list[dict[str, Any]], key: str, value: str) -> dict[str, Any]:
+    for row in rows:
+        if row.get(key) == value:
+            return row
+    return {}
+
+
+def _period_consumption_value(row: dict[str, Any], period: str) -> float | None:
+    key = "total_kwh" if period == "total" else f"{period}_kwh"
+    return _float_or_none(row.get(key))
 
 
 def _round_or_none(value: float | None) -> float | None:

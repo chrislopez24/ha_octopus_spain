@@ -7,7 +7,7 @@ from datetime import date, datetime
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CURRENCY_EURO
 from homeassistant.core import HomeAssistant
@@ -16,6 +16,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import ATTR_RECENT_INVOICES, SUN_CLUB_DISCOUNT, SUN_CLUB_END_HOUR, SUN_CLUB_START_HOUR
 from .coordinator import OctopusSpainCoordinator
 from .entity import OctopusSpainEntity
+from .measurements import (
+    average_daily_consumption,
+    average_daily_cost,
+    current_month_estimated_cost,
+    current_month_period_consumption,
+    latest_period_consumption,
+)
 
 MADRID = ZoneInfo("Europe/Madrid")
 
@@ -94,6 +101,15 @@ def _measurement_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
     }
 
 
+def _estimated_cost_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
+    measurements = coordinator.data.measurements if coordinator.data else {}
+    return {
+        "estimated_cost_source": measurements.get("estimated_cost_source"),
+        "estimated_cost_includes_power": measurements.get("estimated_cost_includes_power"),
+        "estimated_cost_includes_taxes": measurements.get("estimated_cost_includes_taxes"),
+    }
+
+
 def _series_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
     measurements = coordinator.data.measurements if coordinator.data else {}
     return {
@@ -117,29 +133,77 @@ def _credit_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
     }
 
 
+def _hourly_period_series(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
+    measurements = coordinator.data.measurements if coordinator.data else {}
+    return measurements.get("hourly_period_series", {})
+
+
+def _series(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
+    measurements = coordinator.data.measurements if coordinator.data else {}
+    return measurements.get("series", {})
+
+
+def _estimated_cost_series_by_date(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
+    measurements = coordinator.data.measurements if coordinator.data else {}
+    return measurements.get("series_by_date", {})
+
+
+def _last_complete_day_period_value(period: str) -> Callable[[OctopusSpainCoordinator], Any]:
+    return lambda coordinator: latest_period_consumption(_hourly_period_series(coordinator), period)
+
+
+def _current_month_period_value(period: str) -> Callable[[OctopusSpainCoordinator], Any]:
+    return lambda coordinator: current_month_period_consumption(_hourly_period_series(coordinator), period, datetime.now(MADRID))
+
+
+def _current_month_estimated_cost_value(coordinator: OctopusSpainCoordinator) -> float | None:
+    return current_month_estimated_cost(_estimated_cost_series_by_date(coordinator), datetime.now(MADRID))
+
+
+def _average_daily_consumption_value(days: int) -> Callable[[OctopusSpainCoordinator], Any]:
+    return lambda coordinator: average_daily_consumption(_series(coordinator), days)
+
+
+def _average_daily_cost_value(days: int) -> Callable[[OctopusSpainCoordinator], Any]:
+    return lambda coordinator: average_daily_cost(_estimated_cost_series_by_date(coordinator), days)
+
+
 SENSORS: tuple[OctopusSensorEntityDescription, ...] = (
     OctopusSensorEntityDescription(key="tariff_name", translation_key="tariff_name", value_fn=_tariff_value("name")),
     OctopusSensorEntityDescription(key="tariff_code", translation_key="tariff_code", value_fn=_tariff_value("code")),
     OctopusSensorEntityDescription(key="tariff_valid_to", translation_key="tariff_valid_to", device_class=SensorDeviceClass.DATE, value_fn=_date_sensor_value(_tariff_value("valid_to"))),
-    OctopusSensorEntityDescription(key="base_energy_price", translation_key="base_energy_price", native_unit_of_measurement=f"{CURRENCY_EURO}/kWh", suggested_display_precision=4, value_fn=_tariff_value("base_energy_price")),
-    OctopusSensorEntityDescription(key="current_energy_price", translation_key="current_energy_price", native_unit_of_measurement=f"{CURRENCY_EURO}/kWh", suggested_display_precision=4, value_fn=_current_energy_price),
-    OctopusSensorEntityDescription(key="power_price_period_1", translation_key="power_price_period_1", native_unit_of_measurement=f"{CURRENCY_EURO}/kW/d", suggested_display_precision=4, value_fn=_tariff_value("power_price_period_1")),
-    OctopusSensorEntityDescription(key="power_price_period_2", translation_key="power_price_period_2", native_unit_of_measurement=f"{CURRENCY_EURO}/kW/d", suggested_display_precision=4, value_fn=_tariff_value("power_price_period_2")),
-    OctopusSensorEntityDescription(key="surplus_rate", translation_key="surplus_rate", native_unit_of_measurement=f"{CURRENCY_EURO}/kWh", suggested_display_precision=4, value_fn=_tariff_value("surplus_rate")),
-    OctopusSensorEntityDescription(key="last_invoice_amount", translation_key="last_invoice_amount", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, value_fn=_billing_value("last_invoice_amount")),
+    OctopusSensorEntityDescription(key="base_energy_price", translation_key="base_energy_price", native_unit_of_measurement=f"{CURRENCY_EURO}/kWh", suggested_display_precision=4, state_class=SensorStateClass.MEASUREMENT, value_fn=_tariff_value("base_energy_price")),
+    OctopusSensorEntityDescription(key="current_energy_price", translation_key="current_energy_price", native_unit_of_measurement=f"{CURRENCY_EURO}/kWh", suggested_display_precision=4, state_class=SensorStateClass.MEASUREMENT, value_fn=_current_energy_price),
+    OctopusSensorEntityDescription(key="power_price_period_1", translation_key="power_price_period_1", native_unit_of_measurement=f"{CURRENCY_EURO}/kW/d", suggested_display_precision=4, state_class=SensorStateClass.MEASUREMENT, value_fn=_tariff_value("power_price_period_1")),
+    OctopusSensorEntityDescription(key="power_price_period_2", translation_key="power_price_period_2", native_unit_of_measurement=f"{CURRENCY_EURO}/kW/d", suggested_display_precision=4, state_class=SensorStateClass.MEASUREMENT, value_fn=_tariff_value("power_price_period_2")),
+    OctopusSensorEntityDescription(key="surplus_rate", translation_key="surplus_rate", native_unit_of_measurement=f"{CURRENCY_EURO}/kWh", suggested_display_precision=4, state_class=SensorStateClass.MEASUREMENT, value_fn=_tariff_value("surplus_rate")),
+    OctopusSensorEntityDescription(key="last_invoice_amount", translation_key="last_invoice_amount", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_billing_value("last_invoice_amount")),
     OctopusSensorEntityDescription(key="last_invoice_issued", translation_key="last_invoice_issued", device_class=SensorDeviceClass.DATE, value_fn=_date_sensor_value(_billing_value("last_invoice_issued"))),
     OctopusSensorEntityDescription(key="last_invoice_period_start", translation_key="last_invoice_period_start", device_class=SensorDeviceClass.DATE, value_fn=_date_sensor_value(_billing_value("last_invoice_period_start"))),
     OctopusSensorEntityDescription(key="last_invoice_period_end", translation_key="last_invoice_period_end", device_class=SensorDeviceClass.DATE, value_fn=_date_sensor_value(_billing_value("last_invoice_period_end"))),
-    OctopusSensorEntityDescription(key="credit_balance", translation_key="credit_balance", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, value_fn=_balance_value("credit_balance")),
-    OctopusSensorEntityDescription(key="sun_club_credits", translation_key="sun_club_credits", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, value_fn=_credit_value("SUN_CLUB"), attrs_fn=_credit_attrs),
-    OctopusSensorEntityDescription(key="referral_credits", translation_key="referral_credits", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, value_fn=_credit_value("REFERRAL_REWARD"), attrs_fn=_credit_attrs),
-    OctopusSensorEntityDescription(key="last_complete_day_consumption", translation_key="last_complete_day_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, value_fn=_measurement_value("last_day_consumption_kwh"), attrs_fn=_measurement_attrs),
-    OctopusSensorEntityDescription(key="last_complete_day_api_cost", translation_key="last_complete_day_api_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, value_fn=_measurement_value("last_day_cost_eur"), attrs_fn=_measurement_attrs),
-    OctopusSensorEntityDescription(key="last_complete_day_estimated_cost", translation_key="last_complete_day_estimated_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, value_fn=_measurement_value("estimated_last_day_cost_eur"), attrs_fn=_measurement_attrs),
-    OctopusSensorEntityDescription(key="week_consumption", translation_key="week_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, value_fn=_measurement_value("last_7_days_consumption_kwh"), attrs_fn=_measurement_attrs),
-    OctopusSensorEntityDescription(key="week_estimated_cost", translation_key="week_estimated_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, value_fn=_measurement_value("estimated_last_7_days_cost_eur"), attrs_fn=_measurement_attrs),
-    OctopusSensorEntityDescription(key="month_consumption", translation_key="month_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, value_fn=_measurement_value("last_31_days_consumption_kwh"), attrs_fn=_measurement_attrs),
-    OctopusSensorEntityDescription(key="month_estimated_cost", translation_key="month_estimated_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, value_fn=_measurement_value("estimated_last_31_days_cost_eur"), attrs_fn=_measurement_attrs),
+    OctopusSensorEntityDescription(key="credit_balance", translation_key="credit_balance", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_balance_value("credit_balance")),
+    OctopusSensorEntityDescription(key="sun_club_credits", translation_key="sun_club_credits", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_credit_value("SUN_CLUB"), attrs_fn=_credit_attrs),
+    OctopusSensorEntityDescription(key="referral_credits", translation_key="referral_credits", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_credit_value("REFERRAL_REWARD"), attrs_fn=_credit_attrs),
+    OctopusSensorEntityDescription(key="last_complete_day_consumption", translation_key="last_complete_day_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("last_day_consumption_kwh"), attrs_fn=_measurement_attrs),
+    OctopusSensorEntityDescription(key="last_complete_day_api_cost", translation_key="last_complete_day_api_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("last_day_cost_eur"), attrs_fn=_measurement_attrs),
+    OctopusSensorEntityDescription(key="last_complete_day_estimated_cost", translation_key="last_complete_day_estimated_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("estimated_last_day_cost_eur"), attrs_fn=_estimated_cost_attrs),
+    OctopusSensorEntityDescription(key="week_consumption", translation_key="week_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("last_7_days_consumption_kwh"), attrs_fn=_measurement_attrs),
+    OctopusSensorEntityDescription(key="week_estimated_cost", translation_key="week_estimated_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("estimated_last_7_days_cost_eur"), attrs_fn=_estimated_cost_attrs),
+    OctopusSensorEntityDescription(key="month_consumption", translation_key="month_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("last_31_days_consumption_kwh"), attrs_fn=_measurement_attrs),
+    OctopusSensorEntityDescription(key="month_estimated_cost", translation_key="month_estimated_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("estimated_last_31_days_cost_eur"), attrs_fn=_estimated_cost_attrs),
+    OctopusSensorEntityDescription(key="last_complete_day_period_total_consumption", translation_key="last_complete_day_period_total_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_last_complete_day_period_value("total")),
+    OctopusSensorEntityDescription(key="last_complete_day_punta_consumption", translation_key="last_complete_day_punta_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_last_complete_day_period_value("punta")),
+    OctopusSensorEntityDescription(key="last_complete_day_llano_consumption", translation_key="last_complete_day_llano_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_last_complete_day_period_value("llano")),
+    OctopusSensorEntityDescription(key="last_complete_day_valle_consumption", translation_key="last_complete_day_valle_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_last_complete_day_period_value("valle")),
+    OctopusSensorEntityDescription(key="current_month_period_total_consumption", translation_key="current_month_period_total_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_current_month_period_value("total")),
+    OctopusSensorEntityDescription(key="current_month_punta_consumption", translation_key="current_month_punta_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_current_month_period_value("punta")),
+    OctopusSensorEntityDescription(key="current_month_llano_consumption", translation_key="current_month_llano_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_current_month_period_value("llano")),
+    OctopusSensorEntityDescription(key="current_month_valle_consumption", translation_key="current_month_valle_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_current_month_period_value("valle")),
+    OctopusSensorEntityDescription(key="current_month_estimated_cost", translation_key="current_month_estimated_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_current_month_estimated_cost_value, attrs_fn=_estimated_cost_attrs),
+    OctopusSensorEntityDescription(key="average_daily_consumption_7d", translation_key="average_daily_consumption_7d", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_average_daily_consumption_value(7)),
+    OctopusSensorEntityDescription(key="average_daily_consumption_31d", translation_key="average_daily_consumption_31d", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_average_daily_consumption_value(31)),
+    OctopusSensorEntityDescription(key="average_daily_estimated_cost_7d", translation_key="average_daily_estimated_cost_7d", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_average_daily_cost_value(7), attrs_fn=_estimated_cost_attrs),
+    OctopusSensorEntityDescription(key="average_daily_estimated_cost_31d", translation_key="average_daily_estimated_cost_31d", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_average_daily_cost_value(31), attrs_fn=_estimated_cost_attrs),
     OctopusSensorEntityDescription(key="measurement_points", translation_key="measurement_points", value_fn=_measurement_value("points_count"), attrs_fn=_measurement_attrs),
     OctopusSensorEntityDescription(key="measurement_series", translation_key="measurement_series", value_fn=_measurement_value("points_count"), attrs_fn=_series_attrs),
     OctopusSensorEntityDescription(key="invoices", translation_key="invoices", value_fn=_invoice_count, attrs_fn=_invoice_attrs),

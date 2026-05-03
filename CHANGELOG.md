@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.0.3 - 2026-05-03
+
+Dashboard usability release.
+
+### Added
+
+- Flat dashboard sensors for latest complete day and current month consumption split by total, Punta, Llano and Valle.
+- Flat sensors for current month estimated cost and 7/31 day daily averages.
+- `measurement` state class metadata for price, consumption and cost sensors where appropriate.
+- Estimated-cost attributes that state whether power term and taxes are included.
+
+### Changed
+
+- Refresh Octopus data hourly and notify entities on each coordinator refresh so time-derived values update more reliably.
+- Shortened the README and moved technical detail references to `docs/`.
+
 ## 0.0.2 - 2026-05-03
 
 Maintenance release.

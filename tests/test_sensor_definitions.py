@@ -18,6 +18,10 @@ class _FakeSensorDeviceClass:
     MONETARY = "monetary"
 
 
+class _FakeSensorStateClass:
+    MEASUREMENT = "measurement"
+
+
 class _FakeSensorEntity:
     pass
 
@@ -29,6 +33,7 @@ class _FakeSensorEntityDescription:
     device_class: str | None = None
     native_unit_of_measurement: str | None = None
     suggested_display_precision: int | None = None
+    state_class: str | None = None
 
 
 homeassistant = types.ModuleType("homeassistant")
@@ -37,6 +42,7 @@ sensor_mod = types.ModuleType("homeassistant.components.sensor")
 sensor_mod.SensorDeviceClass = _FakeSensorDeviceClass
 sensor_mod.SensorEntity = _FakeSensorEntity
 sensor_mod.SensorEntityDescription = _FakeSensorEntityDescription
+sensor_mod.SensorStateClass = _FakeSensorStateClass
 config_entries = types.ModuleType("homeassistant.config_entries")
 config_entries.ConfigEntry = object
 const = types.ModuleType("homeassistant.const")
@@ -128,3 +134,28 @@ def test_dashboard_grade_sensor_set_keeps_invoice_opportunistic_and_estimated_co
     assert "week_estimated_cost" in keys
     assert "month_estimated_cost" in keys
     assert "measurement_series" in keys
+
+
+def test_flat_dashboard_sensors_have_measurement_state_class():
+    sensor = sys.modules.get("custom_components.octopus_spain.sensor") or load_module("sensor")
+    descriptions = {description.key: description for description in sensor.SENSORS}
+
+    expected = {
+        "current_energy_price",
+        "last_complete_day_period_total_consumption",
+        "last_complete_day_punta_consumption",
+        "last_complete_day_llano_consumption",
+        "last_complete_day_valle_consumption",
+        "current_month_period_total_consumption",
+        "current_month_punta_consumption",
+        "current_month_llano_consumption",
+        "current_month_valle_consumption",
+        "current_month_estimated_cost",
+        "average_daily_consumption_7d",
+        "average_daily_consumption_31d",
+        "average_daily_estimated_cost_7d",
+        "average_daily_estimated_cost_31d",
+    }
+
+    assert expected <= descriptions.keys()
+    assert all(descriptions[key].state_class == "measurement" for key in expected)

@@ -129,6 +129,40 @@ def test_hourly_chart_series_are_bucketed_for_dashboard_bars():
     ]
 
 
+def test_flat_dashboard_values_are_derived_from_measurement_series_attributes():
+    series = {
+        "daily": [
+            {"date": "2026-04-29", "kwh": 10.0, "cost_eur": None},
+            {"date": "2026-04-30", "kwh": 20.0, "cost_eur": None},
+            {"date": "2026-05-01", "kwh": 9.0, "cost_eur": None},
+        ]
+    }
+    hourly_period_series = {
+        "daily": [
+            {"date": "2026-04-30", "total_kwh": 20.5, "punta_kwh": 10.8, "llano_kwh": 4.3, "valle_kwh": 5.4},
+            {"date": "2026-05-01", "total_kwh": 9.0, "punta_kwh": 3.3, "llano_kwh": 2.8, "valle_kwh": 2.9},
+        ],
+        "monthly": [
+            {"period": "2026-05", "total_kwh": 9.0, "punta_kwh": 3.3, "llano_kwh": 2.8, "valle_kwh": 2.9}
+        ],
+    }
+    costs_by_date = {"2026-04-29": 1.24, "2026-04-30": 1.93, "2026-05-01": 1.03}
+
+    now = measurements.datetime.fromisoformat("2026-05-03T12:00:00+02:00")
+
+    assert measurements.latest_period_consumption(hourly_period_series, "total") == 9.0
+    assert measurements.latest_period_consumption(hourly_period_series, "punta") == 3.3
+    assert measurements.latest_period_consumption(hourly_period_series, "llano") == 2.8
+    assert measurements.latest_period_consumption(hourly_period_series, "valle") == 2.9
+    assert measurements.current_month_period_consumption(hourly_period_series, "total", now) == 9.0
+    assert measurements.current_month_period_consumption(hourly_period_series, "punta", now) == 3.3
+    assert measurements.current_month_estimated_cost(costs_by_date, now) == 1.03
+    assert measurements.average_daily_consumption(series, 7) == 13.0
+    assert measurements.average_daily_consumption(series, 31) == 13.0
+    assert measurements.average_daily_cost(costs_by_date, 7) == 1.4
+    assert measurements.average_daily_cost(costs_by_date, 31) == 1.4
+
+
 def test_credit_amounts_are_exposed_in_euros_not_minor_units():
     payload = {
         "data": {

@@ -104,6 +104,45 @@
       },
       "month_estimated_cost": {
         "name": "Coste estimado últimos 31 días"
+      },
+      "last_complete_day_period_total_consumption": {
+        "name": "Consumo último día por periodos total"
+      },
+      "last_complete_day_punta_consumption": {
+        "name": "Consumo último día punta"
+      },
+      "last_complete_day_llano_consumption": {
+        "name": "Consumo último día llano"
+      },
+      "last_complete_day_valle_consumption": {
+        "name": "Consumo último día valle"
+      },
+      "current_month_period_total_consumption": {
+        "name": "Consumo mes actual por periodos total"
+      },
+      "current_month_punta_consumption": {
+        "name": "Consumo mes actual punta"
+      },
+      "current_month_llano_consumption": {
+        "name": "Consumo mes actual llano"
+      },
+      "current_month_valle_consumption": {
+        "name": "Consumo mes actual valle"
+      },
+      "current_month_estimated_cost": {
+        "name": "Coste estimado mes actual"
+      },
+      "average_daily_consumption_7d": {
+        "name": "Consumo medio diario últimos 7 días"
+      },
+      "average_daily_consumption_31d": {
+        "name": "Consumo medio diario últimos 31 días"
+      },
+      "average_daily_estimated_cost_7d": {
+        "name": "Coste estimado medio diario últimos 7 días"
+      },
+      "average_daily_estimated_cost_31d": {
+        "name": "Coste estimado medio diario últimos 31 días"
       }
     },
     "binary_sensor": {
