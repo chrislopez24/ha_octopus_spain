@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.6 - 2026-05-03
+
+Invoice download reliability release.
+
+### Fixed
+
+- Always request a fresh signed Octopus PDF URL when downloading an invoice instead of reusing an in-memory signed URL that may have expired.
+- Validate that the upstream response starts as a PDF before streaming it to the browser.
+- Handle card download errors with a Home Assistant notification instead of letting the browser save an error response as `.txt`.
+
 ## 0.0.5 - 2026-05-03
 
 Invoice download card release.

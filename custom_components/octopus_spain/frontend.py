@@ -16,6 +16,7 @@ from .const import DOMAIN
 from .services import first_runtime_data
 
 INVOICE_DOWNLOAD_PATH = f"/api/{DOMAIN}/invoice/{{invoice_id_hash}}"
+PDF_SIGNATURE = b"%PDF"
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 
@@ -39,21 +40,29 @@ class OctopusSpainInvoiceDownloadView(HomeAssistantView):
             document = await runtime.client.async_get_invoice_document(invoice_id_hash)
             async with runtime.client.session.get(document.url) as response:
                 response.raise_for_status()
-                content = await response.read()
-                content_type = response.headers.get("content-type", "application/pdf").split(";", 1)[0] or "application/pdf"
+                first_chunk = await response.content.read(8192)
+                if not first_chunk.startswith(PDF_SIGNATURE):
+                    raise OctopusSpainError("Invoice document response was not a PDF")
+
+                download = web.StreamResponse(
+                    status=200,
+                    reason="OK",
+                    headers={
+                        "Content-Disposition": f'attachment; filename="{_invoice_filename(invoice, invoice_id_hash)}"',
+                        "Cache-Control": "no-store",
+                        "Content-Type": "application/pdf",
+                    },
+                )
+                await download.prepare(request)
+                await download.write(first_chunk)
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    await download.write(chunk)
+                await download.write_eof()
+                return download
         except (ClientError, OctopusSpainError, TimeoutError) as err:
             raise web.HTTPBadGateway(reason="Invoice document is not available") from err
         except HomeAssistantError as err:
             raise web.HTTPNotFound(reason="Octopus Spain is not configured") from err
-
-        return web.Response(
-            body=content,
-            content_type=content_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{_invoice_filename(invoice, invoice_id_hash)}"',
-                "Cache-Control": "no-store",
-            },
-        )
 
 
 def _invoice_by_hash(invoices: list[dict[str, Any]], invoice_id_hash: str) -> dict[str, Any]:

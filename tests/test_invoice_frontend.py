@@ -70,5 +70,6 @@ def test_invoice_card_defaults_to_twelve_downloadable_invoice_rows():
 
     assert "limit: 12" in card
     assert "/api/octopus_spain/invoice/" in card
+    assert "await fetch(" in card
     assert "download" in card
     assert "window.open" not in card

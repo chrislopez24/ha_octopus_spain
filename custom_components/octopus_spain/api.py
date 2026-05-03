@@ -77,7 +77,6 @@ class OctopusSpainClient:
         self._email = email
         self._password = password
         self._token: str | None = None
-        self._invoice_url_cache: dict[str, str] = {}
         self._invoice_id_cache: dict[str, int] = {}
         self._invoice_hashes: list[str] = []
         self._account_number: str | None = None
@@ -159,16 +158,12 @@ class OctopusSpainClient:
         return {"count": len(invoices), "invoices": invoices}
 
     async def async_get_invoice_document(self, invoice_id_hash: str) -> InvoiceDocument:
-        """Return a temporary signed invoice URL from memory or fresh Bill query."""
+        """Return a fresh temporary signed invoice URL."""
 
-        cached_url = self._invoice_url_cache.get(invoice_id_hash)
-        if cached_url:
-            return InvoiceDocument(invoice_id_hash=invoice_id_hash, url=cached_url)
         invoice_id = self._invoice_id_cache.get(invoice_id_hash)
         if not invoice_id or not self._account_number or not self._ledger_number:
             raise OctopusSpainError("Invoice document is not available; refresh invoices first")
         url = await self._async_fetch_bill_url(self._account_number, self._ledger_number, invoice_id)
-        self._invoice_url_cache[invoice_id_hash] = url
         return InvoiceDocument(invoice_id_hash=invoice_id_hash, url=url)
 
     async def async_get_invoice_document_by_index(self, index: int) -> InvoiceDocument:
@@ -364,8 +359,6 @@ class OctopusSpainClient:
             self._invoice_id_cache[invoice_hash] = int(raw_invoice_id)
             self._account_number = account_number
             self._ledger_number = ledger_number
-        if invoice_id and pdf_url:
-            self._invoice_url_cache[invoice_hash] = pdf_url
         period_start = self._date_only(node.get("consumptionStartDate"))
         period_end = self._date_only(node.get("consumptionEndDate"))
         period_label = _invoice_period_label(period_start, period_end)

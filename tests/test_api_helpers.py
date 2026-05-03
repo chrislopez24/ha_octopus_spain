@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -119,6 +120,27 @@ def test_invoice_payload_exposes_human_labels_and_stable_indexes():
     assert result[0]["label"] == "Factura 2026-04-01 a 2026-05-01"
     assert result[1]["index"] == 1
     assert client._invoice_hashes == [result[0]["invoice_id_hash"], result[1]["invoice_id_hash"]]
+
+
+def test_invoice_document_fetches_fresh_signed_url_even_if_old_url_was_seen():
+    api = load_module("api")
+    client = api.OctopusSpainClient(session=None, email="user@example.invalid", password="secret")
+    client._invoice_id_cache["abc123"] = 123
+    client._invoice_url_cache = {"abc123": "https://example.invalid/expired.txt"}
+    client._account_number = "account"
+    client._ledger_number = "ledger"
+
+    async def fake_fetch_bill_url(account_number, ledger_number, invoice_id):
+        assert account_number == "account"
+        assert ledger_number == "ledger"
+        assert invoice_id == 123
+        return "https://example.invalid/fresh.pdf"
+
+    client._async_fetch_bill_url = fake_fetch_bill_url
+
+    document = asyncio.run(client.async_get_invoice_document("abc123"))
+
+    assert document.url == "https://example.invalid/fresh.pdf"
 
 
 def test_utc_midnight_would_shift_hourly_measurements_during_dst():

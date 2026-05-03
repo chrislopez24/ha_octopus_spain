@@ -68,6 +68,36 @@ class OctopusInvoiceCard extends HTMLElement {
     }
   }
 
+  async downloadInvoice(invoice) {
+    if (!invoice?.invoice_id_hash) {
+      this.notify("La factura no tiene identificador de descarga.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/octopus_spain/invoice/${encodeURIComponent(invoice.invoice_id_hash)}`);
+      if (!response.ok) {
+        throw new Error("No se pudo generar el PDF de la factura.");
+      }
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.toLowerCase().startsWith("application/pdf")) {
+        throw new Error("Octopus no devolvio un PDF.");
+      }
+
+      const blob = await response.blob();
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = filenameFromResponse(response) || filenameFromInvoice(invoice);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      this.notify(error?.message || "No se pudo descargar la factura.");
+    }
+  }
+
   render() {
     if (!this.config || !this._hass) {
       return;
@@ -79,13 +109,14 @@ class OctopusInvoiceCard extends HTMLElement {
       const available = Boolean(invoice.document_available && invoice.invoice_id_hash);
       const label = escapeHtml(invoice.label || `Factura #${Number(invoice.index || 0) + 1}`);
       const period = escapeHtml(invoice.period_label || "Periodo no disponible");
-      const href = `/api/octopus_spain/invoice/${encodeURIComponent(invoice.invoice_id_hash || "")}`;
+      const index = Number(invoice.index || 0);
       return `
-        <a
+        <button
           class="invoice-row ${available ? "" : "disabled"}"
-          href="${available ? href : "#"}"
-          download
+          type="button"
+          data-invoice-index="${index}"
           aria-disabled="${available ? "false" : "true"}"
+          ${available ? "" : "disabled"}
         >
           <ha-icon icon="${available ? "mdi:file-document-outline" : "mdi:file-document-remove-outline"}"></ha-icon>
           <span class="invoice-text">
@@ -95,7 +126,7 @@ class OctopusInvoiceCard extends HTMLElement {
           <span class="download-icon" title="${available ? "Descargar PDF" : "PDF no disponible"}">
             <ha-icon icon="mdi:download"></ha-icon>
           </span>
-        </a>
+        </button>
       `;
     }).join("");
 
@@ -146,17 +177,23 @@ class OctopusInvoiceCard extends HTMLElement {
         .invoice-row {
           grid-template-columns: 40px 1fr 40px;
           gap: 8px;
+          width: 100%;
           min-height: 56px;
           border-radius: 8px;
           padding: 4px 0;
+          border: 0;
+          background: transparent;
           color: var(--primary-text-color);
+          font: inherit;
+          text-align: left;
           text-decoration: none;
+          cursor: pointer;
         }
         .invoice-row:hover {
           background: var(--secondary-background-color);
         }
         .invoice-row.disabled {
-          pointer-events: none;
+          cursor: default;
           opacity: 0.55;
         }
         .invoice-row > ha-icon {
@@ -174,7 +211,7 @@ class OctopusInvoiceCard extends HTMLElement {
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-        button,
+        .refresh-button,
         .download-icon {
           width: 40px;
           height: 40px;
@@ -186,10 +223,10 @@ class OctopusInvoiceCard extends HTMLElement {
           color: var(--primary-text-color);
           cursor: pointer;
         }
-        button:hover:not(:disabled) {
+        .refresh-button:hover:not(:disabled) {
           background: var(--divider-color);
         }
-        button:disabled {
+        .refresh-button:disabled {
           color: var(--disabled-text-color);
           cursor: default;
         }
@@ -200,6 +237,13 @@ class OctopusInvoiceCard extends HTMLElement {
     `;
 
     this.querySelector(".refresh-button")?.addEventListener("click", () => this.refreshInvoices());
+    for (const row of this.querySelectorAll(".invoice-row")) {
+      row.addEventListener("click", () => {
+        const index = Number(row.dataset.invoiceIndex || 0);
+        const invoice = this.invoices().find((item) => Number(item.index || 0) === index);
+        this.downloadInvoice(invoice);
+      });
+    }
   }
 }
 
@@ -211,6 +255,18 @@ function escapeHtml(value) {
     "\"": "&quot;",
     "'": "&#039;",
   }[character]));
+}
+
+function filenameFromResponse(response) {
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/i);
+  return match?.[1] || "";
+}
+
+function filenameFromInvoice(invoice) {
+  const label = invoice?.period_label || invoice?.label || invoice?.invoice_id_hash || "factura";
+  const safeLabel = String(label).replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._-]+|[._-]+$/g, "");
+  return `octopus_spain_factura_${safeLabel || "factura"}.pdf`;
 }
 
 customElements.define("octopus-invoice-card", OctopusInvoiceCard);
