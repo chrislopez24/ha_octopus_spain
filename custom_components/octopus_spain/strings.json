@@ -1,0 +1,163 @@
+{
+  "title": "Octopus Energy Spain",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Conectar con Octopus Energy Spain",
+        "description": "Introduce tus credenciales de Octopus. Home Assistant guardará email y contraseña en la entrada de configuración; el token temporal de Kraken se mantiene solo en memoria.",
+        "data": {
+          "email": "Email",
+          "password": "Contraseña"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Actualizar credenciales de Octopus",
+        "description": "La sesión de Octopus ha caducado o las credenciales ya no son válidas.",
+        "data": {
+          "email": "Email",
+          "password": "Contraseña"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No se pudo conectar con Octopus Energy Spain.",
+      "invalid_auth": "Credenciales no válidas."
+    },
+    "abort": {
+      "already_configured": "Esta cuenta de Octopus ya está configurada.",
+      "wrong_account": "Las credenciales pertenecen a otra cuenta de Octopus."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "tariff_name": {
+        "name": "Tarifa"
+      },
+      "tariff_code": {
+        "name": "Código de tarifa"
+      },
+      "tariff_valid_to": {
+        "name": "Tarifa válida hasta"
+      },
+      "base_energy_price": {
+        "name": "Precio base energía"
+      },
+      "current_energy_price": {
+        "name": "Precio actual energía"
+      },
+      "power_price_period_1": {
+        "name": "Precio potencia periodo 1"
+      },
+      "power_price_period_2": {
+        "name": "Precio potencia periodo 2"
+      },
+      "surplus_rate": {
+        "name": "Compensación excedentes"
+      },
+      "last_invoice_amount": {
+        "name": "Última factura"
+      },
+      "last_invoice_issued": {
+        "name": "Emisión última factura"
+      },
+      "last_invoice_period_start": {
+        "name": "Inicio periodo última factura"
+      },
+      "last_invoice_period_end": {
+        "name": "Fin periodo última factura"
+      },
+      "credit_balance": {
+        "name": "Saldo crédito"
+      },
+      "week_consumption": {
+        "name": "Consumo últimos 7 días"
+      },
+      "month_consumption": {
+        "name": "Consumo últimos 31 días"
+      },
+      "measurement_points": {
+        "name": "Puntos de medición"
+      },
+      "measurement_series": {
+        "name": "Series de medición"
+      },
+      "invoices": {
+        "name": "Facturas"
+      },
+      "sun_club_credits": {
+        "name": "Créditos Sun Club"
+      },
+      "referral_credits": {
+        "name": "Créditos referral"
+      },
+      "last_complete_day_consumption": {
+        "name": "Consumo último día completo disponible"
+      },
+      "last_complete_day_api_cost": {
+        "name": "Coste API último día completo disponible"
+      },
+      "last_complete_day_estimated_cost": {
+        "name": "Coste estimado último día completo disponible"
+      },
+      "week_estimated_cost": {
+        "name": "Coste estimado últimos 7 días"
+      },
+      "month_estimated_cost": {
+        "name": "Coste estimado últimos 31 días"
+      }
+    },
+    "binary_sensor": {
+      "sun_club_window": {
+        "name": "Ventana Sun Club"
+      }
+    }
+  },
+  "services": {
+    "get_invoice_document": {
+      "name": "Obtener documento de factura",
+      "description": "Devuelve bajo demanda una URL temporal de la factura. La URL puede contener datos sensibles y no se guarda como atributo de entidad.",
+      "fields": {
+        "invoice_id_hash": {
+          "name": "Hash de factura",
+          "description": "Hash mostrado en el atributo recent_invoices del sensor de facturas."
+        }
+      }
+    },
+    "get_invoices": {
+      "name": "Obtener facturas",
+      "description": "Devuelve una lista redacted de facturas recientes sin URLs firmadas.",
+      "fields": {
+        "limit": {
+          "name": "Límite",
+          "description": "Número máximo de facturas a devolver."
+        }
+      }
+    },
+    "get_measurements": {
+      "name": "Obtener mediciones",
+      "description": "Devuelve consumo, coste cuando Octopus lo expone y series agregadas para pintar gráficas o automatizaciones.",
+      "fields": {
+        "start_date": {
+          "name": "Fecha inicial"
+        },
+        "end_date": {
+          "name": "Fecha final"
+        },
+        "frequency": {
+          "name": "Frecuencia"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "invoice_document_unavailable": {
+      "message": "El documento de factura no está disponible. Refresca la integración y vuelve a intentarlo."
+    },
+    "invoices_unavailable": {
+      "message": "No se pudieron obtener las facturas de Octopus."
+    },
+    "measurements_unavailable": {
+      "message": "No se pudieron obtener las mediciones de Octopus."
+    }
+  }
+}

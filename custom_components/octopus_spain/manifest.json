@@ -1,0 +1,12 @@
+{
+  "domain": "octopus_spain",
+  "name": "Octopus Energy Spain",
+  "codeowners": ["@chrislopez24"],
+  "config_flow": true,
+  "documentation": "https://github.com/chrislopez24/ha_octopus_spain",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/chrislopez24/ha_octopus_spain/issues",
+  "requirements": [],
+  "version": "0.0.1"
+}

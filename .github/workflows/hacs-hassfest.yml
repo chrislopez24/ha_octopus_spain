@@ -1,0 +1,25 @@
+name: HACS and hassfest
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: HACS validation placeholder
+        run: |
+          echo "Add official HACS validation action here once the public repository is available."
+          test -f hacs.json
+          test -d custom_components/octopus_spain
+
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: hassfest placeholder
+        run: |
+          echo "Add Home Assistant hassfest validation here once CI secrets/permissions are configured."
+          python -m json.tool custom_components/octopus_spain/manifest.json > /dev/null

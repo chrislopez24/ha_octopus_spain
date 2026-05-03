@@ -1,0 +1,43 @@
+get_invoice_document:
+  fields:
+    invoice_id_hash:
+      required: true
+      example: "abc123def456"
+      selector:
+        text:
+
+get_invoices:
+  fields:
+    limit:
+      required: false
+      default: 12
+      example: 12
+      selector:
+        number:
+          min: 1
+          max: 24
+          mode: box
+
+get_measurements:
+  fields:
+    start_date:
+      required: false
+      example: "2026-04-01"
+      selector:
+        date:
+    end_date:
+      required: false
+      example: "2026-05-01"
+      selector:
+        date:
+    frequency:
+      required: false
+      default: DAY_INTERVAL
+      example: DAY_INTERVAL
+      selector:
+        select:
+          options:
+            - label: Daily
+              value: DAY_INTERVAL
+            - label: Hourly
+              value: HOUR_INTERVAL

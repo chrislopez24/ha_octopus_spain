@@ -1,0 +1,23 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile custom components
+        run: python -m compileall custom_components
+      - name: Check HACS repository shape
+        run: |
+          test -f hacs.json
+          test -f README.md
+          test -f custom_components/octopus_spain/manifest.json
+          count=$(find custom_components -mindepth 1 -maxdepth 1 -type d | wc -l)
+          test "$count" -eq 1
