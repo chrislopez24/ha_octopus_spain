@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.7 - 2026-05-03
+
+Invoice card authentication release.
+
+### Fixed
+
+- Use Home Assistant's authenticated frontend fetch helper when the card calls the invoice download API endpoint.
+- Show the HTTP status in the card error message when PDF generation fails.
+
 ## 0.0.6 - 2026-05-03
 
 Invoice download reliability release.

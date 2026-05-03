@@ -75,9 +75,11 @@ class OctopusInvoiceCard extends HTMLElement {
     }
 
     try {
-      const response = await fetch(`/api/octopus_spain/invoice/${encodeURIComponent(invoice.invoice_id_hash)}`);
+      const response = await this.authenticatedFetch(
+        `/api/octopus_spain/invoice/${encodeURIComponent(invoice.invoice_id_hash)}`,
+      );
       if (!response.ok) {
-        throw new Error("No se pudo generar el PDF de la factura.");
+        throw new Error(`No se pudo generar el PDF de la factura (${response.status}).`);
       }
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.toLowerCase().startsWith("application/pdf")) {
@@ -96,6 +98,15 @@ class OctopusInvoiceCard extends HTMLElement {
     } catch (error) {
       this.notify(error?.message || "No se pudo descargar la factura.");
     }
+  }
+
+  authenticatedFetch(url) {
+    if (this._hass?.fetchWithAuth) {
+      return this._hass.fetchWithAuth(url);
+    }
+
+    const token = this._hass?.auth?.data?.access_token;
+    return fetch(url, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
   }
 
   render() {

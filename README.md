@@ -2,7 +2,7 @@
 
 Integración custom para Home Assistant compatible con HACS. Conecta con Octopus Energy España mediante la API GraphQL usada por Kraken y expone datos de cuenta, tarifa, facturas y consumo como entidades y servicios.
 
-> Estado: versión `0.0.6`. La API de Octopus Spain no es pública ni versionada para terceros, así que algún campo puede cambiar.
+> Estado: versión `0.0.7`. La API de Octopus Spain no es pública ni versionada para terceros, así que algún campo puede cambiar.
 
 ## Qué incluye
 
@@ -77,7 +77,7 @@ La integración sirve una card Lovelace propia en:
 /octopus_spain/octopus-invoice-card.js
 ```
 
-Para forzar refresco del recurso tras actualizar, puedes añadir una query de versión en Lovelace: `/octopus_spain/octopus-invoice-card.js?v=0.0.6`.
+Para forzar refresco del recurso tras actualizar, puedes añadir una query de versión en Lovelace: `/octopus_spain/octopus-invoice-card.js?v=0.0.7`.
 
 Añade ese recurso como **JavaScript module** en Lovelace y usa:
 
