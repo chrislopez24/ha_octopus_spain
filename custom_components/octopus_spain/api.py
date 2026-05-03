@@ -83,6 +83,12 @@ class OctopusSpainClient:
         self._account_number: str | None = None
         self._ledger_number: str | None = None
 
+    @property
+    def session(self) -> ClientSession:
+        """Return the shared HTTP session."""
+
+        return self._session
+
     async def async_login(self) -> None:
         """Authenticate and keep the Kraken token in memory only."""
 

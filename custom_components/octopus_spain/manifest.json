@@ -8,5 +8,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/chrislopez24/ha_octopus_spain/issues",
   "requirements": [],
-  "version": "0.0.4"
+  "version": "0.0.5"
 }

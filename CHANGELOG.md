@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.5 - 2026-05-03
+
+Invoice download card release.
+
+### Added
+
+- Bundled `custom:octopus-invoice-card` Lovelace card served by the integration.
+- Authenticated invoice download endpoint at `/api/octopus_spain/invoice/{invoice_id_hash}`.
+
+### Changed
+
+- Invoice PDFs are proxied through Home Assistant as attachments so clicking an invoice row downloads the file instead of exposing a signed Octopus URL to Lovelace.
+
 ## 0.0.4 - 2026-05-03
 
 Invoice UX release.

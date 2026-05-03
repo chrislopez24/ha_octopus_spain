@@ -2,14 +2,14 @@
 
 Integración custom para Home Assistant compatible con HACS. Conecta con Octopus Energy España mediante la API GraphQL usada por Kraken y expone datos de cuenta, tarifa, facturas y consumo como entidades y servicios.
 
-> Estado: versión `0.0.4`. La API de Octopus Spain no es pública ni versionada para terceros, así que algún campo puede cambiar.
+> Estado: versión `0.0.5`. La API de Octopus Spain no es pública ni versionada para terceros, así que algún campo puede cambiar.
 
 ## Qué incluye
 
 - Tarifa, precios de energía/potencia y compensación de excedentes.
 - Saldo eléctrico, créditos Sun Club y créditos referral.
 - Ventana Sun Club 12:00-18:00 Europe/Madrid.
-- Facturas recientes, con PDF solo bajo demanda.
+- Facturas recientes, con PDF solo bajo demanda y card Lovelace opcional para descargar las últimas 12.
 - Consumo diario/horario, días completos disponibles y series para dashboards.
 - Coste real si Octopus lo devuelve y coste estimado cuando no existe coste API.
 
@@ -68,6 +68,25 @@ data:
 ```
 
 La URL del PDF puede dar acceso a una factura y debe tratarse como sensible. No se persiste como atributo de entidad.
+
+## Card de facturas
+
+La integración sirve una card Lovelace propia en:
+
+```text
+/octopus_spain/octopus-invoice-card.js
+```
+
+Añade ese recurso como **JavaScript module** en Lovelace y usa:
+
+```yaml
+type: custom:octopus-invoice-card
+entity: sensor.octopus_energy_spain_facturas
+title: Facturas Octopus
+limit: 12
+```
+
+La card muestra `recent_invoices` y descarga cada PDF a través de Home Assistant en `/api/octopus_spain/invoice/{invoice_id_hash}`. El endpoint obtiene la URL firmada bajo demanda, descarga el PDF y lo devuelve como adjunto; la URL firmada no queda expuesta en el estado ni en la card.
 
 ## Documentación técnica
 
