@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import sys
@@ -63,6 +63,33 @@ def test_madrid_midnight_range_aligns_measurement_queries_to_complete_days():
 
     assert start_at.isoformat() == "2026-04-01T00:00:00+02:00"
     assert end_at.isoformat() == "2026-04-30T00:00:00+02:00"
+
+
+def test_measurement_variables_preserve_madrid_midnight_when_serialized():
+    api = load_module("api")
+    service_helpers = load_module("service_helpers")
+    date_range = service_helpers.service_date_range(
+        {"start_date": date(2026, 5, 1), "end_date": date(2026, 5, 2)}
+    )
+    start_at, end_at = service_helpers.madrid_midnight_range(date_range)
+
+    result = api.OctopusSpainClient._measurement_variables("property-id", start_at, end_at, "HOUR_INTERVAL", 24)
+
+    assert datetime.fromisoformat(result["startAt"].replace("Z", "+00:00")).astimezone(
+        service_helpers.MADRID
+    ).isoformat() == "2026-05-01T00:00:00+02:00"
+    assert datetime.fromisoformat(result["endAt"].replace("Z", "+00:00")).astimezone(
+        service_helpers.MADRID
+    ).isoformat() == "2026-05-02T00:00:00+02:00"
+    assert result["startAt"] == "2026-04-30T22:00:00.000Z"
+    assert result["endAt"] == "2026-05-01T22:00:00.000Z"
+
+
+def test_utc_midnight_would_shift_hourly_measurements_during_dst():
+    service_helpers = load_module("service_helpers")
+    start_at = datetime.combine(date(2026, 5, 1), datetime.min.time(), timezone.utc)
+
+    assert start_at.astimezone(service_helpers.MADRID).isoformat() == "2026-05-01T02:00:00+02:00"
 
 
 def test_service_date_range_respects_explicit_dates():

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.2 - 2026-05-03
+
+Maintenance release.
+
+### Fixed
+
+- Preserve Europe/Madrid day boundaries when serializing measurement service ranges.
+- Return native `date` values for Home Assistant date sensors.
+
+### Changed
+
+- Bumped the integration version for the next HACS release.
+- Documented the current release version.
+
 ## 0.0.1 - 2026-05-03
 
 Initial public preview release.

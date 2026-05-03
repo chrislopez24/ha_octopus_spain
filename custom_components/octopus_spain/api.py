@@ -6,6 +6,7 @@ import asyncio
 from datetime import date, datetime, timezone
 import logging
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from aiohttp import ClientError, ClientResponseError, ClientSession
 
@@ -41,6 +42,7 @@ from .model import AccountSelection, InvoiceDocument, OctopusData
 from .redaction import redact_sensitive_value, stable_hash
 
 _LOGGER = logging.getLogger(__name__)
+MADRID = ZoneInfo("Europe/Madrid")
 
 
 class OctopusSpainError(Exception):
@@ -240,8 +242,8 @@ class OctopusSpainClient:
     ) -> dict[str, Any]:
         """Return redacted measurements for a Home Assistant response service."""
 
-        start_at = datetime.combine(start_date, datetime.min.time(), timezone.utc)
-        end_at = datetime.combine(end_date, datetime.min.time(), timezone.utc)
+        start_at = datetime.combine(start_date, datetime.min.time(), MADRID)
+        end_at = datetime.combine(end_date, datetime.min.time(), MADRID)
         if end_at <= start_at:
             raise OctopusSpainError("end_date must be after start_date")
         interval_seconds = 3600 if frequency == "HOUR_INTERVAL" else 86400

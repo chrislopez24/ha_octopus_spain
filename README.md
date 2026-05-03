@@ -2,7 +2,7 @@
 
 Integración custom para Home Assistant compatible con HACS. Conecta con Octopus Energy España mediante el endpoint GraphQL directo de Kraken observado para España y expone la información útil como entidades, atributos y servicios seguros.
 
-> Estado: versión inicial `0.0.1`. La API de Octopus Spain no es pública ni versionada para terceros; algunos campos pueden cambiar.
+> Estado: versión `0.0.2`. La API de Octopus Spain no es pública ni versionada para terceros; algunos campos pueden cambiar.
 
 ## Alcance
 
@@ -21,13 +21,13 @@ No instala ni modifica dashboards automáticamente. Tampoco guarda tokens, URLs 
 
 ## Versionado
 
-La versión de la integración se declara en `custom_components/octopus_spain/manifest.json`. La primera versión pública es `0.0.1`.
+La versión de la integración se declara en `custom_components/octopus_spain/manifest.json`. La primera versión pública es `0.0.1`; la versión actual es `0.0.2`.
 
 Para publicar nuevas versiones en HACS se debe:
 
 1. Actualizar `manifest.json`.
 2. Actualizar `CHANGELOG.md`.
-3. Crear un tag Git con el mismo número, por ejemplo `v0.0.1`.
+3. Crear un tag Git con el mismo número, por ejemplo `v0.0.2`.
 4. Publicar/pushear el tag al repositorio.
 
 ## Instalación con HACS como custom repository
