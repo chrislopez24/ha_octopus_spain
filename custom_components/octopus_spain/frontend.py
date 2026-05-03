@@ -13,7 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from .api import OctopusSpainError
 from .const import DOMAIN
-from .services import first_runtime_data
+from .services import runtime_data_for_invoice_hash
 
 INVOICE_DOWNLOAD_PATH = f"/api/{DOMAIN}/invoice/{{invoice_id_hash}}"
 PDF_SIGNATURE = b"%PDF"
@@ -32,7 +32,7 @@ class OctopusSpainInvoiceDownloadView(HomeAssistantView):
 
         try:
             hass: HomeAssistant = request.app["hass"]
-            runtime = first_runtime_data(hass)
+            runtime = runtime_data_for_invoice_hash(hass, invoice_id_hash)
             invoice = _invoice_by_hash(
                 runtime.coordinator.data.invoices if runtime.coordinator.data else [],
                 invoice_id_hash,

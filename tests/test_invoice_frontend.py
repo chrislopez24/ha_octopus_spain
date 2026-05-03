@@ -25,6 +25,7 @@ exceptions.HomeAssistantError = type("HomeAssistantError", (Exception,), {})
 exceptions.ConfigEntryAuthFailed = type("ConfigEntryAuthFailed", (Exception,), {})
 services_mod = types.ModuleType("custom_components.octopus_spain.services")
 services_mod.first_runtime_data = lambda _hass: None
+services_mod.runtime_data_for_invoice_hash = lambda _hass, _invoice_id_hash: None
 
 sys.modules.setdefault("homeassistant", homeassistant)
 sys.modules.setdefault("homeassistant.components", components)
@@ -70,6 +71,8 @@ def test_invoice_card_defaults_to_twelve_downloadable_invoice_rows():
 
     assert "limit: 12" in card
     assert "/api/octopus_spain/invoice/" in card
+    assert 'type: "auth/sign_path"' in card
+    assert "fetchInvoice(" in card
     assert "fetchWithAuth" in card
     assert "authenticatedFetch(" in card
     assert "download" in card

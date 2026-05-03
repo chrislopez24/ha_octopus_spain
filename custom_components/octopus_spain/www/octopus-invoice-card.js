@@ -75,9 +75,8 @@ class OctopusInvoiceCard extends HTMLElement {
     }
 
     try {
-      const response = await this.authenticatedFetch(
-        `/api/octopus_spain/invoice/${encodeURIComponent(invoice.invoice_id_hash)}`,
-      );
+      const path = `/api/octopus_spain/invoice/${encodeURIComponent(invoice.invoice_id_hash)}`;
+      const response = await this.fetchInvoice(path);
       if (!response.ok) {
         throw new Error(`No se pudo generar el PDF de la factura (${response.status}).`);
       }
@@ -98,6 +97,33 @@ class OctopusInvoiceCard extends HTMLElement {
     } catch (error) {
       this.notify(error?.message || "No se pudo descargar la factura.");
     }
+  }
+
+  async fetchInvoice(path) {
+    let signedPath = "";
+    try {
+      signedPath = await this.signedPath(path);
+    } catch (_error) {
+      signedPath = "";
+    }
+    if (signedPath) {
+      return fetch(signedPath);
+    }
+
+    return this.authenticatedFetch(path);
+  }
+
+  async signedPath(path) {
+    if (!this._hass?.callWS) {
+      return "";
+    }
+
+    const response = await this._hass.callWS({
+      type: "auth/sign_path",
+      path,
+      expires: 60,
+    });
+    return response?.path || "";
   }
 
   authenticatedFetch(url) {

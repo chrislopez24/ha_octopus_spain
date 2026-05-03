@@ -76,7 +76,7 @@ def _async_get_invoice_document(hass: HomeAssistant):
     async def handler(call: ServiceCall) -> ServiceResponse:
         """Return a signed invoice URL on demand without persisting it in state."""
 
-        runtime = first_runtime_data(hass)
+        runtime = runtime_data_for_invoice_hash(hass, call.data["invoice_id_hash"])
         try:
             document = await runtime.client.async_get_invoice_document(call.data["invoice_id_hash"])
         except OctopusSpainError as err:
@@ -170,8 +170,32 @@ def _async_get_measurements(hass: HomeAssistant):
 def first_runtime_data(hass: HomeAssistant) -> OctopusSpainRuntimeData:
     """Return runtime data for the first configured Octopus entry."""
 
+    for runtime in iter_runtime_data(hass):
+        return runtime
+    raise HomeAssistantError("Octopus Spain is not configured")
+
+
+def iter_runtime_data(hass: HomeAssistant):
+    """Yield runtime data for loaded Octopus entries."""
+
     for entry in hass.config_entries.async_entries(DOMAIN):
         runtime: Any = getattr(entry, "runtime_data", None)
         if runtime is not None:
+            yield runtime
+
+
+def runtime_data_for_invoice_hash(hass: HomeAssistant, invoice_id_hash: str) -> OctopusSpainRuntimeData:
+    """Return the runtime data whose coordinator currently exposes an invoice hash."""
+
+    fallback: OctopusSpainRuntimeData | None = None
+    for runtime in iter_runtime_data(hass):
+        fallback = fallback or runtime
+        invoices = runtime.coordinator.data.invoices if runtime.coordinator.data else []
+        if any(invoice.get("invoice_id_hash") == invoice_id_hash for invoice in invoices):
             return runtime
+        invoice_id_cache = getattr(runtime.client, "_invoice_id_cache", {})
+        if invoice_id_hash in invoice_id_cache:
+            return runtime
+    if fallback is not None:
+        return fallback
     raise HomeAssistantError("Octopus Spain is not configured")

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.8 - 2026-05-03
+
+Invoice card signed-path release.
+
+### Fixed
+
+- Sign the invoice download API path with Home Assistant `auth/sign_path` before fetching the PDF from the Lovelace card, avoiding unauthenticated browser requests that return 401.
+- Resolve invoice downloads against the configured Octopus runtime that owns the requested invoice hash instead of assuming the first loaded config entry.
+
 ## 0.0.7 - 2026-05-03
 
 Invoice card authentication release.
