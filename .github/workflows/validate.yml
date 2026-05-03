@@ -12,12 +12,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Compile custom components
-        run: python -m compileall custom_components
       - name: Check HACS repository shape
         run: |
           test -f hacs.json
           test -f README.md
           test -f custom_components/octopus_spain/manifest.json
-          count=$(find custom_components -mindepth 1 -maxdepth 1 -type d | wc -l)
+          count=$(find custom_components -mindepth 1 -maxdepth 1 -type d ! -name __pycache__ | wc -l)
           test "$count" -eq 1
+      - name: Compile custom components
+        run: python -m compileall custom_components
