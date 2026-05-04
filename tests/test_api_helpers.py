@@ -1,5 +1,7 @@
 import asyncio
+import base64
 from datetime import date, datetime, timedelta, timezone
+import json
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import sys
@@ -10,6 +12,13 @@ ROOT = Path(__file__).parents[1]
 PACKAGE = types.ModuleType("custom_components.octopus_spain")
 PACKAGE.__path__ = [str(ROOT / "custom_components" / "octopus_spain")]
 sys.modules.setdefault("custom_components.octopus_spain", PACKAGE)
+
+homeassistant = types.ModuleType("homeassistant")
+const = types.ModuleType("homeassistant.const")
+const.CURRENCY_EURO = "EUR"
+const.Platform = types.SimpleNamespace(SENSOR="sensor", BINARY_SENSOR="binary_sensor")
+sys.modules.setdefault("homeassistant", homeassistant)
+sys.modules.setdefault("homeassistant.const", const)
 
 
 def load_module(name: str):
@@ -27,6 +36,14 @@ def load_module(name: str):
 _REDACTION = load_module("redaction")
 redact_sensitive_value = _REDACTION.redact_sensitive_value
 stable_hash = _REDACTION.stable_hash
+
+
+def fake_jwt(exp: int) -> str:
+    def encode(payload):
+        raw = json.dumps(payload, separators=(",", ":")).encode()
+        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    return f"{encode({'alg': 'none', 'typ': 'JWT'})}.{encode({'exp': exp})}.signature"
 
 
 def test_redact_sensitive_value_hides_signed_urls_and_authorization_tokens():
@@ -141,6 +158,114 @@ def test_invoice_document_fetches_fresh_signed_url_even_if_old_url_was_seen():
     document = asyncio.run(client.async_get_invoice_document("abc123"))
 
     assert document.url == "https://example.invalid/fresh.pdf"
+
+
+def test_expired_jwt_graphql_error_is_classified_as_auth_error():
+    api = load_module("api")
+    client = api.OctopusSpainClient(session=None, email="user@example.invalid", password="secret")
+
+    payload = {"errors": [{"message": "Signature of the JWT has expired."}]}
+
+    try:
+        client._handle_graphql_response("ViewerAccount", payload)
+    except api.OctopusSpainAuthError:
+        pass
+    else:
+        raise AssertionError("JWT expiration should trigger auth retry handling")
+
+
+def test_expired_jwt_graphql_error_reauthenticates_and_retries_once():
+    api = load_module("api")
+    client = api.OctopusSpainClient(session=None, email="user@example.invalid", password="secret")
+    calls = []
+
+    async def fake_post(payload, include_auth):
+        calls.append((payload["operationName"], include_auth))
+        if not include_auth:
+            return {"data": {"obtainKrakenToken": {"token": "fresh-token"}}}
+        if calls.count(("ViewerAccount", True)) == 1:
+            return client._handle_graphql_response(
+                "ViewerAccount",
+                {"errors": [{"message": "Signature of the JWT has expired."}]},
+            )
+        return {"data": {"viewer": {"id": "ok"}}}
+
+    client._post = fake_post
+
+    result = asyncio.run(client.async_graphql("ViewerAccount", "query", {}))
+
+    assert result == {"data": {"viewer": {"id": "ok"}}}
+    assert calls == [
+        ("obtainKrakenToken", False),
+        ("ViewerAccount", True),
+        ("obtainKrakenToken", False),
+        ("ViewerAccount", True),
+    ]
+
+
+def test_graphql_uses_refresh_token_when_current_jwt_is_missing(monkeypatch):
+    api = load_module("api")
+    monkeypatch.setattr(api.time, "time", lambda: 1_000)
+    client = api.OctopusSpainClient(session=None, email="user@example.invalid", password="secret")
+    client._refresh_token = "refresh-old"
+    client._refresh_expires_at = 1_000_000
+    calls = []
+
+    async def fake_post(payload, include_auth):
+        calls.append((payload["operationName"], include_auth, payload["variables"]["input"] if not include_auth else None))
+        if not include_auth:
+            return {
+                "data": {
+                    "obtainKrakenToken": {
+                        "token": fake_jwt(2_000),
+                        "refreshToken": "refresh-new",
+                        "refreshExpiresIn": 1_000_000,
+                    }
+                }
+            }
+        return {"data": {"viewer": {"id": "ok"}}}
+
+    client._post = fake_post
+
+    result = asyncio.run(client.async_graphql("ViewerAccount", "query", {}))
+
+    assert result == {"data": {"viewer": {"id": "ok"}}}
+    assert calls[0] == ("obtainKrakenToken", False, {"refreshToken": "refresh-old"})
+    assert calls[1] == ("ViewerAccount", True, None)
+    assert client._refresh_token == "refresh-new"
+
+
+def test_graphql_refreshes_jwt_before_expiration(monkeypatch):
+    api = load_module("api")
+    monkeypatch.setattr(api.time, "time", lambda: 1_000)
+    client = api.OctopusSpainClient(session=None, email="user@example.invalid", password="secret")
+    client._token = fake_jwt(1_100)
+    client._token_expires_at = 1_100
+    client._refresh_token = "refresh-token"
+    client._refresh_expires_at = 1_000_000
+    calls = []
+
+    async def fake_post(payload, include_auth):
+        calls.append((payload["operationName"], include_auth))
+        if not include_auth:
+            return {
+                "data": {
+                    "obtainKrakenToken": {
+                        "token": fake_jwt(2_000),
+                        "refreshToken": "refresh-token",
+                        "refreshExpiresIn": 1_000_000,
+                    }
+                }
+            }
+        return {"data": {"viewer": {"id": "ok"}}}
+
+    client._post = fake_post
+
+    result = asyncio.run(client.async_graphql("ViewerAccount", "query", {}))
+
+    assert result == {"data": {"viewer": {"id": "ok"}}}
+    assert calls == [("obtainKrakenToken", False), ("ViewerAccount", True)]
+    assert client._token_expires_at == 2_000
 
 
 def test_utc_midnight_would_shift_hourly_measurements_during_dst():

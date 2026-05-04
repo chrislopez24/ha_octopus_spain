@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from datetime import date, datetime, timezone
+import json
 import logging
+import time
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -43,6 +46,8 @@ from .redaction import redact_sensitive_value, stable_hash
 
 _LOGGER = logging.getLogger(__name__)
 MADRID = ZoneInfo("Europe/Madrid")
+TOKEN_REFRESH_MARGIN_SECONDS = 300
+REFRESH_TOKEN_REFRESH_MARGIN_SECONDS = 86400
 
 
 class OctopusSpainError(Exception):
@@ -77,6 +82,10 @@ class OctopusSpainClient:
         self._email = email
         self._password = password
         self._token: str | None = None
+        self._token_expires_at: int | None = None
+        self._refresh_token: str | None = None
+        self._refresh_expires_at: int | None = None
+        self._login_lock = asyncio.Lock()
         self._invoice_id_cache: dict[str, int] = {}
         self._invoice_hashes: list[str] = []
         self._account_number: str | None = None
@@ -88,21 +97,54 @@ class OctopusSpainClient:
 
         return self._session
 
-    async def async_login(self) -> None:
+    async def async_login(self, *, force_password: bool = False) -> None:
         """Authenticate and keep the Kraken token in memory only."""
+
+        async with self._login_lock:
+            if not force_password and not self._token_expires_soon():
+                return
+            if not force_password and self._can_use_refresh_token():
+                try:
+                    await self._async_obtain_token({"refreshToken": self._refresh_token}, used_refresh_token=True)
+                    return
+                except OctopusSpainAuthError:
+                    self._refresh_token = None
+                    self._refresh_expires_at = None
+
+            await self._async_obtain_token(
+                {"email": self._email, "password": self._password},
+                used_refresh_token=False,
+            )
+
+    async def _async_obtain_token(self, token_input: dict[str, Any], *, used_refresh_token: bool) -> None:
+        """Obtain a Kraken JWT and optional refresh token."""
 
         data = await self._post(
             {
                 "operationName": "obtainKrakenToken",
                 "query": AUTH_MUTATION,
-                "variables": {"input": {"email": self._email, "password": self._password}},
+                "variables": {"input": token_input},
             },
             include_auth=False,
         )
-        token = ((data.get("data") or {}).get("obtainKrakenToken") or {}).get("token")
+        auth_data = ((data.get("data") or {}).get("obtainKrakenToken") or {})
+        token = auth_data.get("token")
         if not token:
             raise OctopusSpainAuthError("Octopus did not return an authentication token")
         self._token = token
+        self._token_expires_at = self._jwt_expiration(token)
+
+        refresh_token = auth_data.get("refreshToken")
+        if refresh_token:
+            self._refresh_token = refresh_token
+        elif not used_refresh_token:
+            self._refresh_token = None
+
+        refresh_expires_at = self._coerce_timestamp(auth_data.get("refreshExpiresIn"))
+        if refresh_expires_at:
+            self._refresh_expires_at = refresh_expires_at
+        elif not used_refresh_token:
+            self._refresh_expires_at = None
 
     async def async_validate_login(self) -> AccountSelection:
         """Validate credentials and return a default account selection."""
@@ -269,13 +311,14 @@ class OctopusSpainClient:
     async def async_graphql(self, operation_name: str, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         """Execute an authenticated GraphQL operation."""
 
-        if not self._token:
+        if self._token_expires_soon():
             await self.async_login()
         payload = {"operationName": operation_name, "query": query, "variables": variables}
         try:
             return await self._post(payload, include_auth=True)
         except OctopusSpainAuthError:
             self._token = None
+            self._token_expires_at = None
             await self.async_login()
             return await self._post(payload, include_auth=True)
 
@@ -311,9 +354,45 @@ class OctopusSpainClient:
         message = "; ".join(str(item) for item in safe_messages)
         lowered = message.lower()
         _LOGGER.debug("Octopus GraphQL error for %s: %s", operation_name, message)
-        if "auth" in lowered or "token" in lowered or "permission" in lowered:
+        if "auth" in lowered or "token" in lowered or "permission" in lowered or "jwt" in lowered:
             raise OctopusSpainAuthError("Octopus authentication failed")
         raise OctopusSpainGraphQLError(message)
+
+    def _token_expires_soon(self) -> bool:
+        if not self._token:
+            return True
+        if self._token_expires_at is None:
+            return False
+        return self._token_expires_at <= int(time.time()) + TOKEN_REFRESH_MARGIN_SECONDS
+
+    def _can_use_refresh_token(self) -> bool:
+        if not self._refresh_token:
+            return False
+        if self._refresh_expires_at is None:
+            return True
+        return self._refresh_expires_at > int(time.time()) + REFRESH_TOKEN_REFRESH_MARGIN_SECONDS
+
+    @staticmethod
+    def _jwt_expiration(token: str) -> int | None:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        try:
+            payload_segment = parts[1] + "=" * (-len(parts[1]) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(payload_segment.encode()).decode())
+        except (json.JSONDecodeError, TypeError, UnicodeDecodeError, ValueError):
+            return None
+        return OctopusSpainClient._coerce_timestamp(payload.get("exp"))
+
+    @staticmethod
+    def _coerce_timestamp(value: Any) -> int | None:
+        if isinstance(value, bool) or value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        return None
 
     async def _async_bills_payload(self, account_number: str, ledger_number: str, limit: int) -> dict[str, Any]:
         return await self.async_graphql(

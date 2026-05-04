@@ -12,6 +12,8 @@ AUTH_MUTATION = """
 mutation obtainKrakenToken($input: ObtainJSONWebTokenInput!) {
   obtainKrakenToken(input: $input) {
     token
+    refreshToken
+    refreshExpiresIn
   }
 }
 """

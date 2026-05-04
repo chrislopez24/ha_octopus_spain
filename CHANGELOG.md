@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.9 - 2026-05-04
+
+Kraken token refresh release.
+
+### Fixed
+
+- Request and keep Kraken refresh tokens in memory so hourly polling can renew the JWT before its one-hour expiry without falling back to email/password every time.
+- Decode the JWT expiry claim and proactively refresh five minutes before expiry.
+- Treat upstream JWT/authentication GraphQL errors as retryable authentication failures, clearing the stale token and retrying once.
+- Serialize concurrent token renewal with a lock to avoid duplicate refresh attempts.
+
 ## 0.0.8 - 2026-05-03
 
 Invoice card signed-path release.

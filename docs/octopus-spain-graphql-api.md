@@ -31,6 +31,8 @@ Autenticación:
 mutation obtainKrakenToken($input: ObtainJSONWebTokenInput!) {
   obtainKrakenToken(input: $input) {
     token
+    refreshToken
+    refreshExpiresIn
   }
 }
 ```
@@ -42,6 +44,19 @@ authorization: <token>
 ```
 
 El token solo vive en memoria del cliente `OctopusSpainClient`.
+
+La introspection de Kraken Spain muestra que `ObtainJSONWebTokenInput` acepta
+`refreshToken`, además de las credenciales iniciales. En prueba live del
+2026-05-04:
+
+- el JWT recibido incluye claim `exp` y dura 3600 segundos;
+- `obtainKrakenToken` con email/password devuelve `refreshToken`;
+- `obtainKrakenToken(input: {refreshToken})` devuelve un JWT nuevo;
+- `refreshExpiresIn` se comporta como timestamp Unix absoluto de expiración del
+  refresh token.
+
+La integración mantiene tanto el JWT como el refresh token solo en memoria. No
+persiste tokens en la entrada de configuración ni en entidades.
 
 ## Selección interna de cuenta
 
@@ -454,7 +469,7 @@ measurements.hourly: mapped 48 ['kwh']
 
 | Web/HAR | Método cliente | HA actual | Privacidad |
 | --- | --- | --- | --- |
-| `obtainKrakenToken` | `async_login` | config flow / reauth | token solo memoria |
+| `obtainKrakenToken` | `async_login` | config flow / reauth / refresh JWT | token y refresh token solo memoria |
 | `ViewerAccount` | `async_viewer_account` | selección cuenta, saldo | cuenta/ledger internos |
 | `ViewerProperty` | `async_viewer_property` | property/agreement | sin CUPS |
 | `Viewer` safe | `async_account_overview` | resumen safe | sin email/NIF/móvil |
