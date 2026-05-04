@@ -105,16 +105,12 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
                 self.selection.account_number,
                 self.selection.ledger_number,
             )
-            devices = await self.client.async_devices(self.selection.account_number)
-            await self.client.async_account_overview()
-            await self.client.async_referrals(self.selection.account_number)
             base_energy_price = self.client.build_data(
                 self.selection,
                 agreement,
                 billing,
                 invoices,
                 credits,
-                devices=devices,
                 measurements={},
             ).tariff.get("base_energy_price")
             end_at = datetime.combine(datetime.now(MADRID).date(), time.min, MADRID)
@@ -139,7 +135,6 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
             billing,
             invoices,
             credits,
-            devices=devices,
             measurements=measurements,
         )
 

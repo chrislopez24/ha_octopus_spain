@@ -5,6 +5,7 @@ secrets.yaml
 .env
 # Local live API probe output; generated from private account data, even if redacted.
 docs/octopus-spain-api-probe-results.json
+docs/octopus-spain-schema-dump.json
 .env.*
 !.env.example
 .storage/

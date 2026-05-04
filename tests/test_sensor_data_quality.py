@@ -1,29 +1,4 @@
-from importlib.util import module_from_spec, spec_from_file_location
-from pathlib import Path
-import sys
-import types
-
-
-ROOT = Path(__file__).parents[1]
-PACKAGE = types.ModuleType("custom_components.octopus_spain")
-PACKAGE.__path__ = [str(ROOT / "custom_components" / "octopus_spain")]
-sys.modules.setdefault("custom_components.octopus_spain", PACKAGE)
-
-
-def load_module(name: str):
-    spec = spec_from_file_location(
-        f"custom_components.octopus_spain.{name}",
-        ROOT / "custom_components" / "octopus_spain" / f"{name}.py",
-    )
-    assert spec and spec.loader
-    module = module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-measurements = load_module("measurements")
-mappers = load_module("mappers")
+from custom_components.octopus_spain import mappers, measurements
 
 
 def test_daily_rollups_ignore_partial_days_when_requested():
@@ -147,7 +122,6 @@ def test_flat_dashboard_values_are_derived_from_measurement_series_attributes():
         ],
     }
     costs_by_date = {"2026-04-29": 1.24, "2026-04-30": 1.93, "2026-05-01": 1.03}
-
     now = measurements.datetime.fromisoformat("2026-05-03T12:00:00+02:00")
 
     assert measurements.latest_period_consumption(hourly_period_series, "total") == 9.0

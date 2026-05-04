@@ -41,7 +41,6 @@ class OctopusData:
     invoices: list[dict[str, Any]] = field(default_factory=list)
     balances: dict[str, Any] = field(default_factory=dict)
     credits: dict[str, Any] = field(default_factory=dict)
-    devices: dict[str, Any] = field(default_factory=dict)
     measurements: dict[str, Any] = field(default_factory=dict)
 
 

@@ -260,7 +260,6 @@ def build_data(
     billing_payload: dict[str, Any],
     invoices: list[dict[str, Any]],
     credits: dict[str, Any],
-    devices: dict[str, Any] | None = None,
     measurements: dict[str, Any] | None = None,
 ) -> OctopusData:
     """Convert raw GraphQL payloads to redacted coordinator data."""
@@ -281,7 +280,6 @@ def build_data(
         invoices=invoices,
         balances={"credit_balance": amount_value(electricity_billing.get("balance"))},
         credits=credits,
-        devices=devices or {},
         measurements=measurements or {},
     )
 

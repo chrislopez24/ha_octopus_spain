@@ -92,9 +92,7 @@ La card muestra `recent_invoices` y descarga cada PDF a través de Home Assistan
 
 ## Documentación técnica
 
-- [docs/octopus-spain-graphql-api.md](docs/octopus-spain-graphql-api.md): operaciones GraphQL, mapeos y servicios.
-- [docs/octopus-spain-graphql-integration.md](docs/octopus-spain-graphql-integration.md): notas históricas de diseño.
-- [docs/octopus-spain-har-operation-catalog.md](docs/octopus-spain-har-operation-catalog.md): catálogo de operaciones observadas.
+- [docs/octopus-spain-graphql-api.md](docs/octopus-spain-graphql-api.md): operaciones GraphQL usadas, mapeo a Home Assistant y reglas de privacidad.
 
 ## Limitaciones
 
@@ -111,5 +109,7 @@ Validaciones básicas:
 rtk python3 -m compileall custom_components tools
 rtk python3 -m pytest -q
 ```
+
+Las herramientas de `tools/` son probes manuales para validar cambios de la API privada. Requieren `.env` local y no deben publicar datos de cuenta.
 
 La versión se declara en `custom_components/octopus_spain/manifest.json`. Para publicar una nueva versión: actualiza `manifest.json`, actualiza `CHANGELOG.md`, crea un tag `vX.Y.Z` y publícalo.

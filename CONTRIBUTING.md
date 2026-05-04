@@ -29,12 +29,11 @@ No commitees `.env`.
 ```bash
 rtk python3 -m compileall custom_components tools
 rtk python3 -m pytest -q
-rtk python3 tools/catalog_har_operations.py
 rtk python3 tools/probe_octopus_endpoints.py
 rtk python3 tools/verify_ha_mapping.py
 ```
 
-`tools/probe_octopus_endpoints.py` genera `docs/octopus-spain-api-probe-results.json`, que está ignorado por Git porque depende de la cuenta local aunque esté redacted.
+`tools/probe_octopus_endpoints.py` puede generar `docs/octopus-spain-api-probe-results.json`, que está ignorado por Git porque depende de la cuenta local aunque esté redacted.
 
 ## Arquitectura
 
@@ -44,4 +43,4 @@ rtk python3 tools/verify_ha_mapping.py
 - `custom_components/octopus_spain/measurements.py`: helpers puros para rollups y series de consumo/coste aptas para gráficas.
 - `custom_components/octopus_spain/coordinator.py`: polling HA.
 - `custom_components/octopus_spain/services.py`: servicios con respuesta bajo demanda.
-- `tools/`: probes live y catálogo HAR sin datos sensibles.
+- `tools/`: probes live para comprobar la API privada cuando cambie.

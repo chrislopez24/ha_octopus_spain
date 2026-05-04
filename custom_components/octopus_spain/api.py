@@ -21,13 +21,9 @@ from .graphql_queries import (
     BILLING_INFO_QUERY,
     BILLS_QUERY,
     CREDITS_QUERY,
-    DEVICES_QUERY,
-    LINKED_SUPPLY_SAFE_QUERY,
     MEASUREMENTS_QUERY,
-    REFERRALS_SAFE_QUERY,
     VIEWER_ACCOUNT_QUERY,
     VIEWER_PROPERTY_QUERY,
-    VIEWER_SAFE_QUERY,
 )
 from .measurements import estimated_energy_costs_from_hourly
 from .mappers import (
@@ -35,11 +31,7 @@ from .mappers import (
     first_edge_node,
     select_default_account,
     summarize_credits,
-    summarize_devices,
-    summarize_linked_supply,
     summarize_measurements,
-    summarize_referrals,
-    summarize_viewer,
 )
 from .model import AccountSelection, InvoiceDocument, OctopusData
 from .redaction import redact_sensitive_value, stable_hash
@@ -162,13 +154,6 @@ class OctopusSpainClient:
 
         return await self.async_graphql("ViewerProperty", VIEWER_PROPERTY_QUERY, {})
 
-    async def async_account_overview(self) -> dict[str, Any]:
-        """Fetch a redacted dashboard/account overview."""
-
-        viewer = await self.async_graphql("Viewer", VIEWER_SAFE_QUERY, {})
-        linked = await self.async_graphql("LinkedSupplyPointAccounts", LINKED_SUPPLY_SAFE_QUERY, {})
-        return {"viewer": summarize_viewer(viewer), "linked_supply": summarize_linked_supply(linked)}
-
     async def async_agreement(self, agreement_id: str | None) -> dict[str, Any]:
         """Fetch tariff agreement data."""
 
@@ -226,21 +211,6 @@ class OctopusSpainClient:
             {"accountNumber": account_number, "ledgerNumber": ledger_number, "after": None},
         )
         return summarize_credits(payload)
-
-    async def async_devices(self, account_number: str) -> dict[str, Any]:
-        """Fetch Octopus account devices as a safe summary."""
-
-        return summarize_devices(await self.async_graphql("getDevices", DEVICES_QUERY, {"accountNumber": account_number}))
-
-    async def async_referrals(self, account_number: str) -> dict[str, Any]:
-        """Fetch referral metadata as a safe summary without referral URL or names."""
-
-        payload = await self.async_graphql(
-            "AccountReferrals",
-            REFERRALS_SAFE_QUERY,
-            {"accountNumber": account_number, "first": 5, "after": None},
-        )
-        return summarize_referrals(payload)
 
     async def async_measurements(
         self,

@@ -1,28 +1,4 @@
-from importlib.util import module_from_spec, spec_from_file_location
-from pathlib import Path
-import sys
-import types
-
-
-ROOT = Path(__file__).parents[1]
-PACKAGE = types.ModuleType("custom_components.octopus_spain")
-PACKAGE.__path__ = [str(ROOT / "custom_components" / "octopus_spain")]
-sys.modules.setdefault("custom_components.octopus_spain", PACKAGE)
-
-
-def load_module(name: str):
-    spec = spec_from_file_location(
-        f"custom_components.octopus_spain.{name}",
-        ROOT / "custom_components" / "octopus_spain" / f"{name}.py",
-    )
-    assert spec and spec.loader
-    module = module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-measurements = load_module("measurements")
+from custom_components.octopus_spain import measurements
 
 
 def test_measurement_rollups_return_day_week_month_year_totals():
