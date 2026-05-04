@@ -9,6 +9,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import OctopusData, OctopusSpainAuthError, OctopusSpainClient, OctopusSpainError
@@ -24,7 +25,6 @@ from .const import (
     SUN_CLUB_DISCOUNT,
     SUN_CLUB_END_HOUR,
     SUN_CLUB_START_HOUR,
-    UPDATE_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,11 +47,48 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
             _LOGGER,
             name=DOMAIN,
             config_entry=entry,
-            update_interval=UPDATE_INTERVAL,
             always_update=True,
         )
         self.client = client
         self.selection = self._selection_from_entry(entry)
+        self._aligned_refresh_active = False
+        self._unsub_aligned_refresh = None
+
+    def async_start_aligned_refresh(self) -> None:
+        """Start refreshing on Madrid hour boundaries."""
+
+        self._aligned_refresh_active = True
+        self._schedule_next_aligned_refresh()
+
+    def async_stop_aligned_refresh(self) -> None:
+        """Stop the aligned refresh timer."""
+
+        self._aligned_refresh_active = False
+        if self._unsub_aligned_refresh is not None:
+            self._unsub_aligned_refresh()
+            self._unsub_aligned_refresh = None
+
+    def _schedule_next_aligned_refresh(self) -> None:
+        """Schedule the next refresh at the next Madrid hour boundary."""
+
+        if not self._aligned_refresh_active:
+            return
+        if self._unsub_aligned_refresh is not None:
+            self._unsub_aligned_refresh()
+        self._unsub_aligned_refresh = async_track_point_in_time(
+            self.hass,
+            self._async_aligned_refresh,
+            next_madrid_hour(),
+        )
+
+    async def _async_aligned_refresh(self, _now: datetime) -> None:
+        """Refresh data and schedule the next Madrid hour boundary."""
+
+        self._unsub_aligned_refresh = None
+        try:
+            await self.async_request_refresh()
+        finally:
+            self._schedule_next_aligned_refresh()
 
     async def _async_update_data(self) -> OctopusData:
         """Fetch account, tariff, balance and invoice data."""
@@ -118,3 +155,10 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
             account_hash=entry.data.get(CONF_ACCOUNT_HASH, "unknown"),
             property_hash=entry.data.get(CONF_PROPERTY_HASH, "unknown"),
         )
+
+
+def next_madrid_hour(now: datetime | None = None) -> datetime:
+    """Return the next whole-hour boundary in Europe/Madrid."""
+
+    madrid_now = (now or datetime.now(MADRID)).astimezone(MADRID)
+    return madrid_now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)

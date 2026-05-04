@@ -58,6 +58,23 @@ La introspection de Kraken Spain muestra que `ObtainJSONWebTokenInput` acepta
 La integración mantiene tanto el JWT como el refresh token solo en memoria. No
 persiste tokens en la entrada de configuración ni en entidades.
 
+## Precio actual y Sun Club
+
+Kraken devuelve el producto contratado (`SUNCLUB-2025-W15`), su precio base de
+energía y los créditos Sun Club históricos. En las queries validadas hasta
+2026-05-04 no hay un campo que indique "Sun Club activo ahora" ni un precio
+efectivo ya descontado para el instante actual.
+
+Por eso `sensor.current_energy_price` se calcula localmente:
+
+- fuera de 12:00-18:00 Europe/Madrid: precio base de energía;
+- dentro de 12:00-18:00 Europe/Madrid: precio base con el descuento Sun Club
+  regular.
+
+La integración refresca al arrancar y luego en límites horarios `HH:00:00`
+Europe/Madrid para que los sensores derivados de hora cambien justo al entrar o
+salir de la ventana Sun Club.
+
 ## Selección interna de cuenta
 
 La integración hace dos llamadas iniciales:

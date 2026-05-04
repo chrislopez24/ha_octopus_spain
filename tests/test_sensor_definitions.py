@@ -53,6 +53,8 @@ core.HomeAssistant = object
 exceptions = types.ModuleType("homeassistant.exceptions")
 exceptions.ConfigEntryAuthFailed = type("ConfigEntryAuthFailed", (Exception,), {})
 helpers = types.ModuleType("homeassistant.helpers")
+event = types.ModuleType("homeassistant.helpers.event")
+event.async_track_point_in_time = lambda *_args, **_kwargs: None
 entity_platform = types.ModuleType("homeassistant.helpers.entity_platform")
 entity_platform.AddEntitiesCallback = object
 device_registry = types.ModuleType("homeassistant.helpers.device_registry")
@@ -90,6 +92,7 @@ sys.modules.setdefault("homeassistant.const", const)
 sys.modules.setdefault("homeassistant.core", core)
 sys.modules.setdefault("homeassistant.exceptions", exceptions)
 sys.modules.setdefault("homeassistant.helpers", helpers)
+sys.modules.setdefault("homeassistant.helpers.event", event)
 sys.modules.setdefault("homeassistant.helpers.entity_platform", entity_platform)
 sys.modules.setdefault("homeassistant.helpers.device_registry", device_registry)
 sys.modules.setdefault("homeassistant.helpers.update_coordinator", update_coordinator)

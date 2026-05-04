@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.10 - 2026-05-04
+
+Hour-aligned polling release.
+
+### Changed
+
+- Refresh Octopus data on Europe/Madrid whole-hour boundaries instead of one-hour intervals relative to Home Assistant startup.
+- Keep the initial startup refresh immediate, then schedule subsequent refreshes for the next `HH:00:00`.
+
+### Fixed
+
+- Update time-derived Sun Club pricing at the correct wall-clock boundary instead of potentially up to an hour late after a restart.
+
 ## 0.0.9 - 2026-05-04
 
 Kraken token refresh release.
