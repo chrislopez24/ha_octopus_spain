@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from custom_components.octopus_spain import sensor
+from custom_components.octopus_spain import binary_sensor, sensor
 
 
 ROOT = Path(__file__).parents[1]
@@ -18,6 +18,21 @@ def test_all_sensor_translation_keys_exist_in_strings_and_spanish_translation():
         assert keys <= payload["entity"]["sensor"].keys()
 
 
+def test_all_binary_sensor_translation_keys_exist_in_strings_and_spanish_translation():
+    keys = {
+        binary_sensor.SUN_CLUB_DESCRIPTION.translation_key,
+        binary_sensor.SOLAR_WALLET_DESCRIPTION.translation_key,
+        binary_sensor.INTELLIGENT_GO_DEVICE_DESCRIPTION.translation_key,
+    }
+
+    for path in (
+        "custom_components/octopus_spain/strings.json",
+        "custom_components/octopus_spain/translations/es.json",
+    ):
+        payload = json.loads((ROOT / path).read_text(encoding="utf-8"))
+        assert keys <= payload["entity"]["binary_sensor"].keys()
+
+
 def test_dashboard_grade_sensor_set_keeps_invoice_opportunistic_and_estimated_costs():
     keys = {description.key for description in sensor.SENSORS}
 
@@ -28,6 +43,8 @@ def test_dashboard_grade_sensor_set_keeps_invoice_opportunistic_and_estimated_co
     assert "week_estimated_cost" in keys
     assert "month_estimated_cost" in keys
     assert "measurement_series" in keys
+    assert "solar_wallet_available_credit" in keys
+    assert "intelligent_go_device_status" in keys
 
 
 def test_flat_dashboard_sensors_have_measurement_state_class():

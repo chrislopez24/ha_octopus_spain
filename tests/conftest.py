@@ -30,10 +30,15 @@ class _FakeSensorEntity:
     pass
 
 
+class _FakeBinarySensorEntity:
+    pass
+
+
 @dataclass(frozen=True, kw_only=True)
 class _FakeSensorEntityDescription:
     key: str | None = None
     translation_key: str | None = None
+    icon: str | None = None
     device_class: str | None = None
     native_unit_of_measurement: str | None = None
     suggested_display_precision: int | None = None
@@ -73,6 +78,11 @@ _module(
 )
 _module("homeassistant")
 _module("homeassistant.components")
+_module(
+    "homeassistant.components.binary_sensor",
+    BinarySensorEntity=_FakeBinarySensorEntity,
+    BinarySensorEntityDescription=_FakeSensorEntityDescription,
+)
 _module("homeassistant.components.http", HomeAssistantView=_FakeHomeAssistantView, StaticPathConfig=object)
 _module(
     "homeassistant.components.sensor",

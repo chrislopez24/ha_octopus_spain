@@ -46,6 +46,8 @@ Los nombres exactos pueden variar si Home Assistant aplica sufijos por tener var
 | Tarifa | `sensor.octopus_energy_spain_tarifa`, `sensor.octopus_energy_spain_codigo_de_tarifa`, `sensor.octopus_energy_spain_tarifa_valida_hasta` |
 | Precios | `sensor.octopus_energy_spain_precio_base_energia`, `sensor.octopus_energy_spain_precio_actual_energia`, `sensor.octopus_energy_spain_precio_potencia_periodo_1`, `sensor.octopus_energy_spain_precio_potencia_periodo_2`, `sensor.octopus_energy_spain_compensacion_excedentes` |
 | Sun Club y créditos | `binary_sensor.octopus_energy_spain_ventana_sun_club`, `sensor.octopus_energy_spain_creditos_sun_club`, `sensor.octopus_energy_spain_creditos_referral`, `sensor.octopus_energy_spain_saldo_credito` |
+| Solar Wallet | `binary_sensor.octopus_energy_spain_solar_wallet`, `sensor.octopus_energy_spain_credito_disponible_solar_wallet`, `sensor.octopus_energy_spain_credito_restante_solar_wallet`, `sensor.octopus_energy_spain_relaciones_solar_wallet` |
+| Intelligent Go | `binary_sensor.octopus_energy_spain_dispositivo_intelligent_go`, `sensor.octopus_energy_spain_tipos_de_dispositivo_intelligent_go_elegibles`, `sensor.octopus_energy_spain_estado_dispositivo_intelligent_go`, `sensor.octopus_energy_spain_cargas_planificadas_intelligent_go` |
 | Consumo | `sensor.octopus_energy_spain_consumo_ultimo_dia_completo_disponible`, `sensor.octopus_energy_spain_consumo_ultimos_7_dias`, `sensor.octopus_energy_spain_consumo_ultimos_31_dias` |
 | Periodos | `sensor.octopus_energy_spain_consumo_ultimo_dia_punta`, `sensor.octopus_energy_spain_consumo_ultimo_dia_llano`, `sensor.octopus_energy_spain_consumo_ultimo_dia_valle`, `sensor.octopus_energy_spain_consumo_mes_actual_punta`, `sensor.octopus_energy_spain_consumo_mes_actual_llano`, `sensor.octopus_energy_spain_consumo_mes_actual_valle` |
 | Costes | `sensor.octopus_energy_spain_coste_estimado_ultimo_dia_completo_disponible`, `sensor.octopus_energy_spain_coste_estimado_ultimos_7_dias`, `sensor.octopus_energy_spain_coste_estimado_mes_actual`, `sensor.octopus_energy_spain_coste_estimado_medio_diario_ultimos_7_dias` |
@@ -502,6 +504,15 @@ Este repositorio está pensado para poder publicarse sin datos personales. La in
 - IDs crudos de factura.
 
 Las referencias visibles usan hashes cortos estables. Las URLs firmadas de facturas solo se resuelven cuando llamas a un servicio o descargas desde la card.
+
+## Solar Wallet e Intelligent Go
+
+La API Kraken expone campos de solo lectura para Solar Wallet y KrakenFlex/Intelligent Go. La integración los deja mapeados de forma conservadora, pero el funcionamiento completo no está confirmado todavía porque hace falta validar los payloads con una cuenta real que tenga Solar Wallet o Intelligent Go activo.
+
+- Solar Wallet: `hasSolarWallet`, `solarWalletAvailableCredit`, `solarWalletLedgers` y `spanishLedgers.solarWalletCreditLeft`.
+- Intelligent Go: tipos de dispositivo elegibles, dispositivo KrakenFlex registrado y cargas planificadas cuando Kraken devuelve un `krakenflexDeviceId`.
+
+Las entidades pueden aparecer como `unavailable` o vacías en cuentas que no tengan esas funciones activas. Los IDs internos de KrakenFlex y ledgers de Solar Wallet no se exponen; las relaciones usan hashes estables para facilitar informes de prueba sin publicar identificadores crudos. Si tienes una de estas tarifas, comparte una salida redacted de los probes para confirmar nombres, unidades y permisos antes de considerar el soporte como estable.
 
 ## Limitaciones conocidas
 

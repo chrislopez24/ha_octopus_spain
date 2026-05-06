@@ -42,6 +42,8 @@ class OctopusData:
     balances: dict[str, Any] = field(default_factory=dict)
     credits: dict[str, Any] = field(default_factory=dict)
     measurements: dict[str, Any] = field(default_factory=dict)
+    solar_wallet: dict[str, Any] = field(default_factory=dict)
+    intelligent_go: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

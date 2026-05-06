@@ -66,6 +66,9 @@ Mapeo interno:
 | `Bill` | `async_get_invoice_document` | resolver PDF bajo demanda |
 | `AccountCreditsQuery` | `async_credits` | creditos agregados por `reasonCode` |
 | `getAccountMeasurements` | `async_measurements` | consumo diario/horario y coste si existe |
+| `SolarWallet` | `async_solar_wallet` | estado Solar Wallet, credito disponible y relaciones redacted |
+| `KrakenFlex` | `async_intelligent_go` | tipos elegibles y dispositivo KrakenFlex registrado |
+| `KrakenFlexDispatches` | `async_intelligent_go` | cargas planificadas cuando existe `krakenflexDeviceId` |
 
 Las queries exploratorias para `Viewer`, `LinkedSupplyPointAccounts`, `getDevices` y `AccountReferrals` se conservan solo para probes manuales en `tools/`; no forman parte del polling normal porque no alimentan entidades ni servicios actuales.
 
@@ -88,6 +91,20 @@ Creditos:
 - `credit_balance`;
 - `sun_club_credits`;
 - `referral_credits`.
+
+Solar Wallet:
+
+- `has_solar_wallet`;
+- `solar_wallet_available_credit`, `solar_wallet_credit_left`;
+- relaciones con `target_ledger_hash`, fechas de validez y presencia de nombre, sin exponer ledger crudo.
+
+Intelligent Go / KrakenFlex:
+
+- tipos de dispositivo elegibles;
+- dispositivo registrado sin exponer `krakenflexDeviceId`;
+- estado, proveedor, vehiculo/cargador, limite de SOC y cargas planificadas si Kraken las devuelve.
+
+Estos campos estan mapeados a partir de introspection y pruebas con una cuenta sin Solar Wallet ni Intelligent Go activo. El soporte debe considerarse experimental hasta validar payloads reales de clientes que tengan esas funciones contratadas.
 
 Mediciones:
 

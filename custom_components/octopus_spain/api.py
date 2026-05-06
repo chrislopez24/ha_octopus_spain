@@ -21,7 +21,10 @@ from .graphql_queries import (
     BILLING_INFO_QUERY,
     BILLS_QUERY,
     CREDITS_QUERY,
+    KRAKENFLEX_DISPATCHES_QUERY,
+    KRAKENFLEX_QUERY,
     MEASUREMENTS_QUERY,
+    SOLAR_WALLET_QUERY,
     VIEWER_ACCOUNT_QUERY,
     VIEWER_PROPERTY_QUERY,
 )
@@ -31,7 +34,9 @@ from .mappers import (
     first_edge_node,
     select_default_account,
     summarize_credits,
+    summarize_intelligent_go,
     summarize_measurements,
+    summarize_solar_wallet,
 )
 from .model import AccountSelection, InvoiceDocument, OctopusData
 from .redaction import redact_sensitive_value, stable_hash
@@ -212,6 +217,47 @@ class OctopusSpainClient:
         )
         return summarize_credits(payload)
 
+    async def async_solar_wallet(self, account_number: str, ledger_number: str | None) -> dict[str, Any]:
+        """Fetch Solar Wallet fields when Kraken exposes them for the account."""
+
+        try:
+            payload = await self.async_graphql(
+                "SolarWallet",
+                SOLAR_WALLET_QUERY,
+                {"accountNumber": account_number, "ledgerNumber": ledger_number},
+            )
+        except OctopusSpainGraphQLError as err:
+            _LOGGER.debug("Solar Wallet fields are unavailable: %s", err)
+            return {"available": False, "error": "unavailable"}
+        return {"available": True, **summarize_solar_wallet(payload)}
+
+    async def async_intelligent_go(self, account_number: str, property_id: str | None) -> dict[str, Any]:
+        """Fetch read-only KrakenFlex/Intelligent Go fields if present."""
+
+        try:
+            payload = await self.async_graphql(
+                "KrakenFlex",
+                KRAKENFLEX_QUERY,
+                {"accountNumber": account_number, "propertyId": self._property_id_int(property_id)},
+            )
+        except OctopusSpainGraphQLError as err:
+            _LOGGER.debug("KrakenFlex fields are unavailable: %s", err)
+            return {"available": False, "error": "unavailable"}
+
+        device = ((payload.get("data") or {}).get("registeredKrakenflexDevice")) or {}
+        dispatches_payload = None
+        device_id = device.get("krakenflexDeviceId")
+        if device_id:
+            try:
+                dispatches_payload = await self.async_graphql(
+                    "KrakenFlexDispatches",
+                    KRAKENFLEX_DISPATCHES_QUERY,
+                    {"deviceId": device_id},
+                )
+            except OctopusSpainGraphQLError as err:
+                _LOGGER.debug("KrakenFlex dispatches are unavailable: %s", err)
+        return {"available": True, **summarize_intelligent_go(payload, dispatches_payload)}
+
     async def async_measurements(
         self,
         property_id: str | None,
@@ -363,6 +409,15 @@ class OctopusSpainClient:
         if isinstance(value, str) and value.isdigit():
             return int(value)
         return None
+
+    @staticmethod
+    def _property_id_int(value: str | None) -> int | None:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            return None
 
     async def _async_bills_payload(self, account_number: str, ledger_number: str, limit: int) -> dict[str, Any]:
         return await self.async_graphql(

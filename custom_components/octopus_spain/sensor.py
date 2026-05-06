@@ -57,6 +57,14 @@ def _balance_value(key: str) -> Callable[[OctopusSpainCoordinator], Any]:
     return lambda coordinator: (coordinator.data.balances if coordinator.data else {}).get(key)
 
 
+def _solar_wallet_value(key: str) -> Callable[[OctopusSpainCoordinator], Any]:
+    return lambda coordinator: (coordinator.data.solar_wallet if coordinator.data else {}).get(key)
+
+
+def _intelligent_go_value(key: str) -> Callable[[OctopusSpainCoordinator], Any]:
+    return lambda coordinator: (coordinator.data.intelligent_go if coordinator.data else {}).get(key)
+
+
 def _measurement_value(key: str) -> Callable[[OctopusSpainCoordinator], Any]:
     return lambda coordinator: (coordinator.data.measurements if coordinator.data else {}).get(key)
 
@@ -133,6 +141,50 @@ def _credit_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
     }
 
 
+def _solar_wallet_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
+    solar_wallet = coordinator.data.solar_wallet if coordinator.data else {}
+    return {
+        "available": solar_wallet.get("available"),
+        "has_solar_wallet": solar_wallet.get("has_solar_wallet"),
+        "relationships_count": solar_wallet.get("relationships_count"),
+        "relationships": solar_wallet.get("relationships", []),
+    }
+
+
+def _intelligent_go_registered_device(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
+    intelligent_go = coordinator.data.intelligent_go if coordinator.data else {}
+    return intelligent_go.get("registered_device") or {}
+
+
+def _intelligent_go_device_value(key: str) -> Callable[[OctopusSpainCoordinator], Any]:
+    return lambda coordinator: _intelligent_go_registered_device(coordinator).get(key)
+
+
+def _intelligent_go_device_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
+    intelligent_go = coordinator.data.intelligent_go if coordinator.data else {}
+    device = _intelligent_go_registered_device(coordinator)
+    return {
+        "available": intelligent_go.get("available"),
+        "eligible_device_types": intelligent_go.get("eligible_device_types", []),
+        "registered_device": device,
+    }
+
+
+def _intelligent_go_dispatch_count(coordinator: OctopusSpainCoordinator) -> int | None:
+    intelligent_go = coordinator.data.intelligent_go if coordinator.data else {}
+    if intelligent_go.get("available") is False:
+        return None
+    return len(intelligent_go.get("planned_dispatches") or [])
+
+
+def _intelligent_go_dispatch_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
+    intelligent_go = coordinator.data.intelligent_go if coordinator.data else {}
+    return {
+        "available": intelligent_go.get("available"),
+        "planned_dispatches": intelligent_go.get("planned_dispatches", []),
+    }
+
+
 def _hourly_period_series(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
     measurements = coordinator.data.measurements if coordinator.data else {}
     return measurements.get("hourly_period_series", {})
@@ -184,6 +236,12 @@ SENSORS: tuple[OctopusSensorEntityDescription, ...] = (
     OctopusSensorEntityDescription(key="credit_balance", translation_key="credit_balance", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_balance_value("credit_balance")),
     OctopusSensorEntityDescription(key="sun_club_credits", translation_key="sun_club_credits", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_credit_value("SUN_CLUB"), attrs_fn=_credit_attrs),
     OctopusSensorEntityDescription(key="referral_credits", translation_key="referral_credits", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_credit_value("REFERRAL_REWARD"), attrs_fn=_credit_attrs),
+    OctopusSensorEntityDescription(key="solar_wallet_available_credit", translation_key="solar_wallet_available_credit", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_solar_wallet_value("available_credit_eur"), attrs_fn=_solar_wallet_attrs),
+    OctopusSensorEntityDescription(key="solar_wallet_credit_left", translation_key="solar_wallet_credit_left", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_solar_wallet_value("credit_left_eur"), attrs_fn=_solar_wallet_attrs),
+    OctopusSensorEntityDescription(key="solar_wallet_relationships", translation_key="solar_wallet_relationships", value_fn=_solar_wallet_value("relationships_count"), attrs_fn=_solar_wallet_attrs),
+    OctopusSensorEntityDescription(key="intelligent_go_eligible_device_types", translation_key="intelligent_go_eligible_device_types", value_fn=lambda coordinator: len(_intelligent_go_value("eligible_device_types")(coordinator) or []), attrs_fn=_intelligent_go_device_attrs),
+    OctopusSensorEntityDescription(key="intelligent_go_device_status", translation_key="intelligent_go_device_status", value_fn=_intelligent_go_device_value("status"), attrs_fn=_intelligent_go_device_attrs),
+    OctopusSensorEntityDescription(key="intelligent_go_planned_dispatches", translation_key="intelligent_go_planned_dispatches", value_fn=_intelligent_go_dispatch_count, attrs_fn=_intelligent_go_dispatch_attrs),
     OctopusSensorEntityDescription(key="last_complete_day_consumption", translation_key="last_complete_day_consumption", device_class=SensorDeviceClass.ENERGY, native_unit_of_measurement="kWh", suggested_display_precision=3, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("last_day_consumption_kwh"), attrs_fn=_measurement_attrs),
     OctopusSensorEntityDescription(key="last_complete_day_api_cost", translation_key="last_complete_day_api_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("last_day_cost_eur"), attrs_fn=_measurement_attrs),
     OctopusSensorEntityDescription(key="last_complete_day_estimated_cost", translation_key="last_complete_day_estimated_cost", device_class=SensorDeviceClass.MONETARY, native_unit_of_measurement=CURRENCY_EURO, suggested_display_precision=2, state_class=SensorStateClass.MEASUREMENT, value_fn=_measurement_value("estimated_last_day_cost_eur"), attrs_fn=_estimated_cost_attrs),

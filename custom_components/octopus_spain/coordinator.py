@@ -105,6 +105,14 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
                 self.selection.account_number,
                 self.selection.ledger_number,
             )
+            solar_wallet = await self.client.async_solar_wallet(
+                self.selection.account_number,
+                self.selection.ledger_number,
+            )
+            intelligent_go = await self.client.async_intelligent_go(
+                self.selection.account_number,
+                self.selection.property_id,
+            )
             base_energy_price = self.client.build_data(
                 self.selection,
                 agreement,
@@ -112,6 +120,8 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
                 invoices,
                 credits,
                 measurements={},
+                solar_wallet=solar_wallet,
+                intelligent_go=intelligent_go,
             ).tariff.get("base_energy_price")
             end_at = datetime.combine(datetime.now(MADRID).date(), time.min, MADRID)
             start_at = end_at - timedelta(days=31)
@@ -136,6 +146,8 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
             invoices,
             credits,
             measurements=measurements,
+            solar_wallet=solar_wallet,
+            intelligent_go=intelligent_go,
         )
 
     @staticmethod

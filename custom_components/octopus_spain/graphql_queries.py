@@ -277,6 +277,61 @@ query getDevices($accountNumber: String!) {
 }
 """
 
+SOLAR_WALLET_QUERY = """
+query SolarWallet($accountNumber: String!, $ledgerNumber: String) {
+  account(accountNumber: $accountNumber) {
+    hasSolarWallet
+    solarWalletAvailableCredit
+    solarWalletLedgers {
+      targetLedger
+      targetGivenName
+      validFrom
+      validTo
+    }
+    spanishLedgers(ledgerNumber: $ledgerNumber) {
+      solarWalletCreditLeft
+    }
+  }
+}
+"""
+
+KRAKENFLEX_QUERY = """
+query KrakenFlex($accountNumber: String!, $propertyId: Int) {
+  eligibleDeviceTypes(accountNumber: $accountNumber, propertyId: $propertyId)
+  registeredKrakenflexDevice(accountNumber: $accountNumber) {
+    krakenflexDeviceId
+    provider
+    vehicleMake
+    vehicleModel
+    vehicleBatterySizeInKwh
+    chargePointMake
+    chargePointModel
+    chargePointPowerInKw
+    status
+    suspended
+    hasToken
+    createdAt
+    stateOfChargeLimit {
+      upperSocLimit
+      timestamp
+      isLimitViolated
+    }
+    testDispatchFailureReason
+  }
+}
+"""
+
+KRAKENFLEX_DISPATCHES_QUERY = """
+query KrakenFlexDispatches($deviceId: String!) {
+  flexPlannedDispatches(deviceId: $deviceId) {
+    start
+    end
+    type
+    energyAddedKwh
+  }
+}
+"""
+
 MEASUREMENTS_QUERY = """
 query getAccountMeasurements(
   $propertyId: ID!

@@ -173,3 +173,78 @@ def test_credit_amounts_are_exposed_in_euros_not_minor_units():
 
     assert result["reason_code_amounts"] == {"SUN_CLUB": 21.39}
     assert result["recent_credits"][0]["amount"] == 9.99
+
+
+def test_solar_wallet_fields_are_redacted_and_exposed_in_euros():
+    payload = {
+        "data": {
+            "account": {
+                "hasSolarWallet": True,
+                "solarWalletAvailableCredit": 12345,
+                "solarWalletLedgers": {
+                    "targetLedger": "L-SECRET",
+                    "targetGivenName": "Chris",
+                    "validFrom": "2026-05-01T00:00:00+02:00",
+                    "validTo": None,
+                },
+                "spanishLedgers": {"solarWalletCreditLeft": 6789},
+            }
+        }
+    }
+
+    result = mappers.summarize_solar_wallet(payload)
+
+    assert result["has_solar_wallet"] is True
+    assert result["available_credit_eur"] == 123.45
+    assert result["credit_left_eur"] == 67.89
+    assert result["relationships_count"] == 1
+    assert result["relationships"][0]["target_ledger_hash"] != "L-SECRET"
+    assert result["relationships"][0]["target_given_name_present"] is True
+
+
+def test_intelligent_go_fields_do_not_expose_device_id():
+    payload = {
+        "data": {
+            "eligibleDeviceTypes": ["ELECTRIC_VEHICLES"],
+            "registeredKrakenflexDevice": {
+                "krakenflexDeviceId": "device-secret",
+                "provider": "TESLA",
+                "vehicleMake": "Tesla",
+                "vehicleModel": "Model Y",
+                "vehicleBatterySizeInKwh": "75.0",
+                "chargePointMake": None,
+                "chargePointModel": None,
+                "chargePointPowerInKw": None,
+                "status": "LIVE",
+                "suspended": False,
+                "hasToken": True,
+                "createdAt": "2026-05-01T00:00:00+02:00",
+                "stateOfChargeLimit": {
+                    "upperSocLimit": 80,
+                    "timestamp": "2026-05-01T00:00:00+02:00",
+                    "isLimitViolated": False,
+                },
+                "testDispatchFailureReason": None,
+            },
+        }
+    }
+    dispatches = {
+        "data": {
+            "flexPlannedDispatches": [
+                {
+                    "start": "2026-05-01T01:00:00+02:00",
+                    "end": "2026-05-01T02:00:00+02:00",
+                    "type": "CHARGE",
+                    "energyAddedKwh": "7.2",
+                }
+            ]
+        }
+    }
+
+    result = mappers.summarize_intelligent_go(payload, dispatches)
+
+    assert result["eligible_device_types"] == ["ELECTRIC_VEHICLES"]
+    assert "krakenflexDeviceId" not in result["registered_device"]
+    assert result["registered_device"]["present"] is True
+    assert result["registered_device"]["vehicle_battery_size_kwh"] == 75.0
+    assert result["planned_dispatches"][0]["energy_added_kwh"] == 7.2

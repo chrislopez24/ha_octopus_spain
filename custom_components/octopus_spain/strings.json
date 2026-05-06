@@ -90,6 +90,24 @@
       "referral_credits": {
         "name": "Créditos referral"
       },
+      "solar_wallet_available_credit": {
+        "name": "Crédito disponible Solar Wallet"
+      },
+      "solar_wallet_credit_left": {
+        "name": "Crédito restante Solar Wallet"
+      },
+      "solar_wallet_relationships": {
+        "name": "Relaciones Solar Wallet"
+      },
+      "intelligent_go_eligible_device_types": {
+        "name": "Tipos de dispositivo Intelligent Go elegibles"
+      },
+      "intelligent_go_device_status": {
+        "name": "Estado dispositivo Intelligent Go"
+      },
+      "intelligent_go_planned_dispatches": {
+        "name": "Cargas planificadas Intelligent Go"
+      },
       "last_complete_day_consumption": {
         "name": "Consumo último día completo disponible"
       },
@@ -148,6 +166,12 @@
     "binary_sensor": {
       "sun_club_window": {
         "name": "Ventana Sun Club"
+      },
+      "solar_wallet": {
+        "name": "Solar Wallet"
+      },
+      "intelligent_go_device": {
+        "name": "Dispositivo Intelligent Go"
       }
     }
   },

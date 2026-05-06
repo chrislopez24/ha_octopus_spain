@@ -150,6 +150,82 @@ def summarize_devices(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def summarize_solar_wallet(payload: dict[str, Any]) -> dict[str, Any]:
+    """Map Solar Wallet account fields without exposing target ledgers."""
+
+    account = ((payload.get("data") or {}).get("account")) or {}
+    ledgers = listify(account.get("solarWalletLedgers"))
+    spanish_ledgers = listify(account.get("spanishLedgers"))
+    return {
+        "has_solar_wallet": account.get("hasSolarWallet"),
+        "available_credit_eur": credit_amount_eur(account.get("solarWalletAvailableCredit")),
+        "credit_left_eur": first_credit_amount(spanish_ledgers, "solarWalletCreditLeft"),
+        "relationships_count": len(ledgers),
+        "relationships": [
+            {
+                "target_ledger_hash": stable_hash(item.get("targetLedger")),
+                "target_given_name_present": bool(item.get("targetGivenName")),
+                "valid_from": item.get("validFrom"),
+                "valid_to": item.get("validTo"),
+            }
+            for item in ledgers
+        ],
+    }
+
+
+def summarize_intelligent_go(
+    payload: dict[str, Any], dispatches_payload: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Map KrakenFlex/Intelligent Go fields without exposing device IDs."""
+
+    data = payload.get("data") or {}
+    device = data.get("registeredKrakenflexDevice") or {}
+    limit = device.get("stateOfChargeLimit") or {}
+    dispatches = ((dispatches_payload or {}).get("data") or {}).get("flexPlannedDispatches") or []
+    return {
+        "eligible_device_types": data.get("eligibleDeviceTypes") or [],
+        "registered_device": {
+            "present": any(value is not None for key, value in device.items() if key != "krakenflexDeviceId"),
+            "provider": device.get("provider"),
+            "vehicle_make": device.get("vehicleMake"),
+            "vehicle_model": device.get("vehicleModel"),
+            "vehicle_battery_size_kwh": amount_value(device.get("vehicleBatterySizeInKwh")),
+            "charge_point_make": device.get("chargePointMake"),
+            "charge_point_model": device.get("chargePointModel"),
+            "charge_point_power_kw": amount_value(device.get("chargePointPowerInKw")),
+            "status": device.get("status"),
+            "suspended": device.get("suspended"),
+            "has_token": device.get("hasToken"),
+            "created_at": device.get("createdAt"),
+            "state_of_charge_limit": {
+                "upper_soc_limit": limit.get("upperSocLimit"),
+                "timestamp": limit.get("timestamp"),
+                "is_limit_violated": limit.get("isLimitViolated"),
+            },
+            "test_dispatch_failure_reason": device.get("testDispatchFailureReason"),
+        },
+        "planned_dispatches": [
+            {
+                "start": item.get("start"),
+                "end": item.get("end"),
+                "type": item.get("type"),
+                "energy_added_kwh": amount_value(item.get("energyAddedKwh")),
+            }
+            for item in dispatches
+        ],
+    }
+
+
+def listify(value: Any) -> list[Any]:
+    """Return GraphQL object-or-list values as a list."""
+
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
 def summarize_referrals(payload: dict[str, Any]) -> dict[str, Any]:
     """Summarize referrals without exposing names or URLs."""
 
@@ -195,6 +271,16 @@ def credit_amount_eur(value: Any) -> float | None:
 
     parsed = amount_value(value)
     return round(parsed / 100, 6) if parsed is not None else None
+
+
+def first_credit_amount(items: list[dict[str, Any]], key: str) -> float | None:
+    """Return the first present minor-unit credit amount as EUR."""
+
+    for item in items:
+        parsed = credit_amount_eur(item.get(key))
+        if parsed is not None:
+            return parsed
+    return None
 
 
 def summarize_measurements(payload: dict[str, Any]) -> dict[str, Any]:
@@ -261,6 +347,8 @@ def build_data(
     invoices: list[dict[str, Any]],
     credits: dict[str, Any],
     measurements: dict[str, Any] | None = None,
+    solar_wallet: dict[str, Any] | None = None,
+    intelligent_go: dict[str, Any] | None = None,
 ) -> OctopusData:
     """Convert raw GraphQL payloads to redacted coordinator data."""
 
@@ -281,6 +369,8 @@ def build_data(
         balances={"credit_balance": amount_value(electricity_billing.get("balance"))},
         credits=credits,
         measurements=measurements or {},
+        solar_wallet=solar_wallet or {},
+        intelligent_go=intelligent_go or {},
     )
 
 
