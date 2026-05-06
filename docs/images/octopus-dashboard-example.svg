@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1038" height="564" viewBox="0 0 1038 564" role="img" aria-labelledby="title desc">
+  <title id="title">Dashboard de ejemplo de Octopus Energy Spain</title>
+  <desc id="desc">Vista de energia de Home Assistant con tarjetas de tarifa, consumos, costes, facturas y periodos de Octopus Energy Spain.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10243a"/>
+      <stop offset="1" stop-color="#455f72"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#172e46" stop-opacity=".94"/>
+      <stop offset="1" stop-color="#263f55" stop-opacity=".88"/>
+    </linearGradient>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#061322" flood-opacity=".45"/>
+    </filter>
+    <style>
+      .bg-poly { fill: rgba(255,255,255,.045); }
+      .panel { fill: url(#panel); stroke: rgba(255,255,255,.07); stroke-width: 1; filter: url(#soft); }
+      .title { fill: #dbeafe; font: 700 12px Arial, sans-serif; }
+      .label { fill: #d7e7f8; font: 700 11px Arial, sans-serif; }
+      .muted { fill: #9fb8ce; font: 700 9px Arial, sans-serif; }
+      .big { fill: #f3f8ff; font: 700 22px Arial, sans-serif; }
+      .value { fill: #f4f8ff; font: 700 12px Arial, sans-serif; }
+      .axis { stroke: rgba(255,255,255,.45); stroke-width: 1; }
+      .grid { stroke: rgba(255,255,255,.08); stroke-width: 1; stroke-dasharray: 2 4; }
+      .green { fill: #2ecc71; }
+      .yellow { fill: #f1c40f; }
+      .blue { fill: #3498db; }
+      .red { fill: #e74c3c; }
+      .purple { fill: #9b59b6; }
+      .orange { stroke: #f39c12; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect width="1038" height="564" fill="url(#bg)"/>
+  <polygon class="bg-poly" points="0,0 300,0 462,226 0,320"/>
+  <polygon class="bg-poly" points="310,0 580,0 560,230 462,226"/>
+  <polygon class="bg-poly" points="704,0 1038,0 1038,189 842,214"/>
+  <polygon class="bg-poly" points="705,255 1038,201 1038,564 766,564"/>
+  <polygon class="bg-poly" points="704,255 766,564 465,564 365,372"/>
+  <polygon class="bg-poly" points="885,489 1038,418 1038,564 766,564"/>
+
+  <g transform="translate(36 26)">
+    <rect class="panel" width="328" height="46" rx="5"/>
+    <text class="label" x="46" y="20">Octopus SUN CLUB</text>
+    <text class="muted" x="46" y="34">SUNCLUB-2025-W15 · hasta 2026-06-27</text>
+    <path class="red" d="M23 15l4 3 5-1 1 6 4 4-5 4-1 6-6-2-6 2-1-6-5-4 4-4 1-6 5 1z"/>
+
+    <g transform="translate(0 52)">
+      <rect class="panel" width="160" height="82" rx="5"/>
+      <rect class="panel" x="166" width="162" height="82" rx="5"/>
+      <text class="green" x="74" y="28" text-anchor="middle" font-size="16">▣</text>
+      <text class="value" x="80" y="57" text-anchor="middle">11.4 kWh</text>
+      <text class="muted" x="80" y="72" text-anchor="middle">Ultimo dia completo</text>
+      <text class="yellow" x="247" y="28" text-anchor="middle" font-size="16">▰</text>
+      <text class="value" x="247" y="57" text-anchor="middle">1.27 €</text>
+      <text class="muted" x="247" y="72" text-anchor="middle">Coste estimado</text>
+    </g>
+
+    <g transform="translate(0 140)">
+      <rect class="panel" width="160" height="82" rx="5"/>
+      <rect class="panel" x="166" width="162" height="82" rx="5"/>
+      <text class="blue" x="80" y="28" text-anchor="middle" font-size="16">▣</text>
+      <text class="value" x="80" y="57" text-anchor="middle">14.1 kWh/d</text>
+      <text class="muted" x="80" y="72" text-anchor="middle">Media 7 dias</text>
+      <text class="purple" x="247" y="28" text-anchor="middle" font-size="16">▣</text>
+      <text class="value" x="247" y="57" text-anchor="middle">14.8 kWh/d</text>
+      <text class="muted" x="247" y="72" text-anchor="middle">Media 31 dias</text>
+    </g>
+
+    <g transform="translate(0 228)">
+      <rect class="panel" width="328" height="258" rx="5"/>
+      <text class="title" x="14" y="22">Consumo diario Octopus</text>
+      <text class="big" x="14" y="55">14,1</text>
+      <text class="muted" x="66" y="55">kWh/d</text>
+      <text class="muted" x="14" y="75">Media 7d</text>
+      <line class="grid" x1="50" y1="103" x2="314" y2="103"/>
+      <line class="grid" x1="50" y1="137" x2="314" y2="137"/>
+      <line class="grid" x1="50" y1="171" x2="314" y2="171"/>
+      <line class="axis" x1="50" y1="205" x2="314" y2="205"/>
+      <line class="blue" x1="68" y1="155" x2="306" y2="155" stroke="#3498db" stroke-width="2"/>
+      <rect class="green" x="75" y="104" width="18" height="101" rx="3"/>
+      <rect class="green" x="108" y="168" width="18" height="37" rx="3"/>
+      <rect class="green" x="139" y="166" width="18" height="39" rx="3"/>
+      <rect class="green" x="170" y="132" width="18" height="73" rx="3"/>
+      <rect class="green" x="201" y="173" width="18" height="32" rx="3"/>
+      <rect class="green" x="232" y="175" width="18" height="30" rx="3"/>
+      <rect class="green" x="263" y="165" width="18" height="40" rx="3"/>
+      <text class="muted" x="54" y="222">27 Abr</text>
+      <text class="muted" x="143" y="222">May '26</text>
+      <text class="muted" x="298" y="222">05 May</text>
+      <circle class="green" cx="102" cy="238" r="5"/><text class="muted" x="110" y="241">kWh dia: 11,4 kWh</text>
+      <circle class="blue" cx="204" cy="238" r="5"/><text class="muted" x="212" y="241">Media 7d: 14,1 kWh/d</text>
+    </g>
+  </g>
+
+  <g transform="translate(368 26)">
+    <rect class="panel" width="328" height="84" rx="5"/>
+    <rect class="panel" x="166" width="162" height="84" rx="5"/>
+    <text class="yellow" x="80" y="28" text-anchor="middle" font-size="20">▾</text>
+    <text class="value" x="80" y="58" text-anchor="middle">0.0715 €/kWh</text>
+    <text class="muted" x="80" y="73" text-anchor="middle">Energia</text>
+    <text class="yellow" x="246" y="28" text-anchor="middle" font-size="20">☀</text>
+    <text class="value" x="246" y="58" text-anchor="middle">111.5 €</text>
+    <text class="muted" x="246" y="73" text-anchor="middle">Sun Club</text>
+
+    <g transform="translate(0 90)">
+      <rect class="panel" width="160" height="84" rx="5"/>
+      <rect class="panel" x="166" width="162" height="84" rx="5"/>
+      <text class="red" x="80" y="28" text-anchor="middle" font-size="20">♜</text>
+      <text class="value" x="80" y="58" text-anchor="middle">0.097 €/kW/d</text>
+      <text class="muted" x="80" y="73" text-anchor="middle">Potencia P1</text>
+      <text class="blue" x="246" y="28" text-anchor="middle" font-size="20">♜</text>
+      <text class="value" x="246" y="58" text-anchor="middle">0.027 €/kW/d</text>
+      <text class="muted" x="246" y="73" text-anchor="middle">Potencia P2</text>
+    </g>
+
+    <rect class="panel" y="178" width="328" height="48" rx="5"/>
+    <text class="yellow" x="22" y="29" font-size="20">☀</text>
+    <text class="label" x="46" y="23">Ventana Sun Club activa</text>
+    <text class="muted" x="46" y="38">11 facturas · ultimo periodo 2026-03-17 a 2026-04-16</text>
+
+    <g transform="translate(0 230)">
+      <rect class="panel" width="328" height="230" rx="5"/>
+      <text class="title" x="14" y="22">Creditos Sun Club recibidos</text>
+      <text class="big" x="14" y="60">9,99</text><text class="muted" x="62" y="60">€</text>
+      <text class="muted" x="14" y="76">Sun Club</text>
+      <line class="grid" x1="50" y1="102" x2="314" y2="102"/>
+      <line class="grid" x1="50" y1="142" x2="314" y2="142"/>
+      <line class="axis" x1="50" y1="220" x2="314" y2="220"/>
+      <rect class="yellow" x="135" y="162" width="9" height="58" rx="4"/>
+      <rect class="yellow" x="162" y="102" width="9" height="118" rx="4"/>
+      <rect class="yellow" x="189" y="154" width="9" height="66" rx="4"/>
+      <rect class="yellow" x="216" y="142" width="9" height="78" rx="4"/>
+      <rect class="yellow" x="243" y="139" width="9" height="81" rx="4"/>
+      <rect class="yellow" x="276" y="161" width="9" height="59" rx="4"/>
+      <rect class="yellow" x="300" y="125" width="9" height="95" rx="4"/>
+      <text class="muted" x="76" y="238">Jun</text>
+      <text class="muted" x="178" y="238">Sep</text>
+      <text class="muted" x="250" y="238">Dec</text>
+    </g>
+  </g>
+
+  <g transform="translate(700 26)">
+    <rect class="panel" width="328" height="194" rx="5"/>
+    <text class="title" x="14" y="28">Facturas Octopus</text>
+    <text class="muted" x="14" y="44">3 facturas recientes</text>
+    <text class="muted" x="292" y="34" font-size="22">⟳</text>
+    <g transform="translate(14 64)">
+      <text class="purple" x="0" y="12" font-size="18">▣</text>
+      <text class="label" x="32" y="5">Factura 2026-03-17 a 2026-04-16</text>
+      <text class="muted" x="32" y="22">2026-03-17 a 2026-04-16</text>
+      <text class="muted" x="286" y="16" font-size="19">⬇</text>
+    </g>
+    <g transform="translate(14 110)">
+      <text class="purple" x="0" y="12" font-size="18">▣</text>
+      <text class="label" x="32" y="5">Factura 2026-02-15 a 2026-03-17</text>
+      <text class="muted" x="32" y="22">2026-02-15 a 2026-03-17</text>
+      <text class="muted" x="286" y="16" font-size="19">⬇</text>
+    </g>
+    <g transform="translate(14 156)">
+      <text class="purple" x="0" y="12" font-size="18">▣</text>
+      <text class="label" x="32" y="5">Factura 2026-01-18 a 2026-02-15</text>
+      <text class="muted" x="32" y="22">2026-01-18 a 2026-02-15</text>
+      <text class="muted" x="286" y="16" font-size="19">⬇</text>
+    </g>
+
+    <g transform="translate(0 230)">
+      <text class="title" x="6" y="-8">Periodos</text>
+      <rect class="panel" width="106" height="86" rx="5"/>
+      <rect class="panel" x="110" width="106" height="86" rx="5"/>
+      <rect class="panel" x="220" width="108" height="86" rx="5"/>
+      <rect class="panel" y="90" width="106" height="86" rx="5"/>
+      <rect class="panel" x="110" y="90" width="106" height="86" rx="5"/>
+      <rect class="panel" x="220" y="90" width="108" height="86" rx="5"/>
+      <text class="red" x="53" y="30" text-anchor="middle" font-size="18">☼</text>
+      <text class="blue" x="163" y="30" text-anchor="middle" font-size="18">♨</text>
+      <text class="purple" x="274" y="30" text-anchor="middle" font-size="18">☾</text>
+      <text class="value" x="53" y="58" text-anchor="middle">0.0 kWh</text><text class="muted" x="53" y="74" text-anchor="middle">Punta dia</text>
+      <text class="value" x="163" y="58" text-anchor="middle">0.0 kWh</text><text class="muted" x="163" y="74" text-anchor="middle">Llano dia</text>
+      <text class="value" x="274" y="58" text-anchor="middle">11.4 kWh</text><text class="muted" x="274" y="74" text-anchor="middle">Valle dia</text>
+      <text class="value" x="53" y="148" text-anchor="middle">3.3 kWh</text><text class="muted" x="53" y="164" text-anchor="middle">Punta mes</text>
+      <text class="value" x="163" y="148" text-anchor="middle">2.8 kWh</text><text class="muted" x="163" y="164" text-anchor="middle">Llano mes</text>
+      <text class="value" x="274" y="148" text-anchor="middle">22.7 kWh</text><text class="muted" x="274" y="164" text-anchor="middle">Valle mes</text>
+    </g>
+  </g>
+</svg>
