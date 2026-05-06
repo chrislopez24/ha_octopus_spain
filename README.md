@@ -3,6 +3,8 @@
 Integración custom para Home Assistant que conecta con Octopus Energy Spain y expone tarifa, precios, créditos, facturas y consumo eléctrico como entidades listas para Lovelace, automatizaciones y servicios con respuesta.
 
 > Versión actual: `0.0.10`. Octopus Energy Spain usa una API GraphQL privada de Kraken, sin contrato público ni versionado para terceros. La integración intenta ser prudente con los datos y resistente a cambios razonables, pero algún campo upstream puede cambiar sin aviso.
+>
+> Esta integracion no ha sido probada en todas las modalidades (Solar Wallet, Intelligent Go...) por lo que es posiblr que haga falta adaptarla para darles soporte. Se añaden diversas tool para mappear los diferentes campos de la APi de GraphQL con el fin de facilitar este trabajo.
 
 ![Dashboard de ejemplo de Octopus Energy Spain](docs/images/octopus-dashboard-example.svg)
 
