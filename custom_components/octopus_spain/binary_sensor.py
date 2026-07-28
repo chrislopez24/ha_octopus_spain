@@ -61,9 +61,14 @@ class OctopusSunClubWindowSensor(OctopusSpainEntity, BinarySensorEntity):
         super().__init__(coordinator, SUN_CLUB_DESCRIPTION.key)
 
     @property
-    def is_on(self) -> bool:
-        """Return true during the documented 12:00-18:00 Sun Club window."""
+    def is_on(self) -> bool | None:
+        """Return true only for a contracted Sun Club product in its window."""
 
+        tariff = self.coordinator.data.tariff if self.coordinator.data else {}
+        if not tariff:
+            return None
+        if not tariff.get("sun_club_enabled"):
+            return False
         now = datetime.now(MADRID)
         return SUN_CLUB_START_HOUR <= now.hour < SUN_CLUB_END_HOUR
 

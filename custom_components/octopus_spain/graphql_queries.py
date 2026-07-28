@@ -106,9 +106,11 @@ query Agreement($id: ID!) {
     product {
       displayName
       code
-      prices {
+      prices(decimalPlaces: 6, powerDecimalPlaces: 6) {
         fixedTerm
         variableTerm
+        fixedTermWithTaxes
+        variableTermWithTaxes
         fixedTermUnits
         variableTermUnits
         dailyFee
@@ -157,6 +159,12 @@ query Bills($accountNumber: String!, $ledgerNumber: String!, $first: Int!, $afte
             pdfUrl
             consumptionStartDate: earliestChargeAt
             consumptionEndDate: latestChargeAt
+            invoicedAmount
+            issuedDate: firstIssued
+            isHeld
+            annulledBy {
+              id
+            }
           }
         }
         pageInfo {
@@ -198,10 +206,10 @@ query Bill($accountNumber: String!, $ledgerNumber: String!, $statementId: Int!, 
 """
 
 CREDITS_QUERY = """
-query AccountCreditsQuery($accountNumber: String!, $ledgerNumber: String, $after: String) {
+query AccountCreditsQuery($accountNumber: String!, $ledgerNumber: String, $fromDate: Date!, $after: String) {
   account(accountNumber: $accountNumber) {
     ledgers(ledgerNumber: $ledgerNumber) {
-      transactions(fromDate: "2025-01-01", first: 100, after: $after) {
+      transactions(fromDate: $fromDate, first: 100, after: $after) {
         pageInfo {
           hasNextPage
           endCursor
@@ -278,45 +286,40 @@ query getDevices($accountNumber: String!) {
 """
 
 SOLAR_WALLET_QUERY = """
-query SolarWallet($accountNumber: String!, $ledgerNumber: String) {
+query SolarWallet($accountNumber: String!) {
   account(accountNumber: $accountNumber) {
-    hasSolarWallet
-    solarWalletAvailableCredit
-    solarWalletLedgers {
-      targetLedger
-      targetGivenName
-      validFrom
-      validTo
-    }
-    spanishLedgers(ledgerNumber: $ledgerNumber) {
-      solarWalletCreditLeft
+    ledgers {
+      ledgerType
+      balance
+      creditTransferPermissionsData {
+        toTargetLedgers {
+          ledgerNumber
+          accountNumber
+          validFrom
+          validTo
+        }
+      }
     }
   }
 }
 """
 
 KRAKENFLEX_QUERY = """
-query KrakenFlex($accountNumber: String!, $propertyId: Int) {
+query KrakenFlex($accountNumber: String!, $propertyId: Int, $propertyIdString: ID) {
   eligibleDeviceTypes(accountNumber: $accountNumber, propertyId: $propertyId)
-  registeredKrakenflexDevice(accountNumber: $accountNumber) {
-    krakenflexDeviceId
+  devices(accountNumber: $accountNumber, propertyId: $propertyIdString) {
+    __typename
+    id
+    name
+    deviceType
     provider
-    vehicleMake
-    vehicleModel
-    vehicleBatterySizeInKwh
-    chargePointMake
-    chargePointModel
-    chargePointPowerInKw
-    status
-    suspended
-    hasToken
-    createdAt
-    stateOfChargeLimit {
-      upperSocLimit
-      timestamp
-      isLimitViolated
+    propertyId
+    status {
+      __typename
+      current
+      isSuspended
+      currentState
     }
-    testDispatchFailureReason
   }
 }
 """
@@ -336,6 +339,7 @@ MEASUREMENTS_QUERY = """
 query getAccountMeasurements(
   $propertyId: ID!
   $first: Int!
+  $after: String
   $utilityFilters: [UtilityFiltersInput!]
   $startOn: Date
   $endOn: Date
@@ -346,6 +350,7 @@ query getAccountMeasurements(
   property(id: $propertyId) {
     measurements(
       first: $first
+      after: $after
       utilityFilters: $utilityFilters
       startOn: $startOn
       endOn: $endOn
@@ -353,6 +358,11 @@ query getAccountMeasurements(
       endAt: $endAt
       timezone: $timezone
     ) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
       edges {
         node {
           value

@@ -47,6 +47,13 @@ def test_dashboard_grade_sensor_set_keeps_invoice_opportunistic_and_estimated_co
     assert "intelligent_go_device_status" in keys
 
 
+def test_credit_balance_sensor_exposes_euros():
+    descriptions = {description.key: description for description in sensor.SENSORS}
+
+    assert descriptions["credit_balance"].native_unit_of_measurement == "EUR"
+    assert descriptions["credit_balance"].suggested_display_precision == 2
+
+
 def test_flat_dashboard_sensors_have_measurement_state_class():
     descriptions = {description.key: description for description in sensor.SENSORS}
     expected = {

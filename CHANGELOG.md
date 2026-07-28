@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.0.11 - 2026-07-28
+
+Dashboard data quality and multi-account release.
+
+### Changed
+
+- Correct monetary values exposed by the dashboard from Kraken minor currency units to EUR.
+- Expose the active Punta/Llano/Valle energy price instead of a single price for all tariff periods.
+- Apply Sun Club pricing only when the active contract confirms eligibility.
+- Add explicit account/property selection for accounts with multiple usable supplies.
+- Add `config_entry_id` selectors to response services for multi-entry dashboards.
+- Document measurement service ranges as semi-open: `[start_date, end_date)`.
+
+### Added
+
+- Paginated measurements and credits with truncation indicators.
+- Recent invoice metadata and on-demand PDF download support.
+- Solar Wallet availability, credit and relationship entities.
+- Intelligent Go eligibility, registered-device and planned-dispatch entities.
+- Resilient dashboard refreshes that retain the last valid value when optional upstream data is temporarily unavailable.
+
+### Fixed
+
+- Correctly map multi-period tariffs, including tax-inclusive prices and fallback for single-period tariffs.
+- Handle HTTP authentication, permission, rate-limit, temporary, timeout and invalid-JSON failures without exposing upstream payloads.
+
 ## 0.0.10 - 2026-05-04
 
 Hour-aligned polling release.

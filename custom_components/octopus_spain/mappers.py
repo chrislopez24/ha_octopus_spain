@@ -48,17 +48,57 @@ def date_only(value: str | None) -> str | None:
         return value[:10]
 
 
-def select_default_account(account_data: dict[str, Any], property_data: dict[str, Any]) -> AccountSelection:
-    """Choose the first usable electricity account/property from viewer data."""
+def account_selections(
+    account_data: dict[str, Any], property_data: dict[str, Any]
+) -> list[AccountSelection]:
+    """Return every usable electricity account/property selection."""
 
     accounts = (((account_data.get("data") or {}).get("viewer") or {}).get("accounts")) or []
     properties_by_account = {
         account.get("number"): account.get("properties") or []
         for account in (((property_data.get("data") or {}).get("viewer") or {}).get("accounts")) or []
     }
-    if not accounts:
-        raise ValueError("No Octopus accounts were returned")
-    return selection_from_account(accounts[0], properties_by_account)
+    selections: list[AccountSelection] = []
+    for account in accounts:
+        account_number = account.get("number")
+        ledger = electricity_ledger(account.get("ledgers") or [])
+        if not account_number or not ledger.get("number"):
+            continue
+        for prop in properties_by_account.get(account_number, []):
+            active_supply = next(
+                (
+                    supply
+                    for supply in prop.get("electricitySupplyPoints") or []
+                    if supply.get("activeAgreement")
+                ),
+                None,
+            )
+            agreement_id = ((active_supply or {}).get("activeAgreement") or {}).get("id")
+            property_id = prop.get("id")
+            if not property_id or not agreement_id:
+                continue
+            selections.append(
+                AccountSelection(
+                    account_number=account_number,
+                    property_id=property_id,
+                    ledger_number=ledger.get("number"),
+                    agreement_id=agreement_id,
+                    account_hash=stable_hash(account_number),
+                    property_hash=stable_hash(property_id),
+                )
+            )
+    return selections
+
+
+def select_default_account(account_data: dict[str, Any], property_data: dict[str, Any]) -> AccountSelection:
+    """Choose an account only when the electricity selection is unambiguous."""
+
+    selections = account_selections(account_data, property_data)
+    if not selections:
+        raise ValueError("No usable Octopus electricity accounts were returned")
+    if len(selections) > 1:
+        raise ValueError("Multiple usable Octopus electricity accounts were returned")
+    return selections[0]
 
 
 def selection_from_account(
@@ -154,21 +194,30 @@ def summarize_solar_wallet(payload: dict[str, Any]) -> dict[str, Any]:
     """Map Solar Wallet account fields without exposing target ledgers."""
 
     account = ((payload.get("data") or {}).get("account")) or {}
-    ledgers = listify(account.get("solarWalletLedgers"))
-    spanish_ledgers = listify(account.get("spanishLedgers"))
+    solar_ledgers = [
+        ledger
+        for ledger in account.get("ledgers") or []
+        if ledger.get("ledgerType") == "SOLAR_WALLET_LEDGER"
+    ]
+    relationships = [
+        target
+        for ledger in solar_ledgers
+        for target in ((ledger.get("creditTransferPermissionsData") or {}).get("toTargetLedgers") or [])
+    ]
+    balance = first_credit_amount(solar_ledgers, "balance")
     return {
-        "has_solar_wallet": account.get("hasSolarWallet"),
-        "available_credit_eur": credit_amount_eur(account.get("solarWalletAvailableCredit")),
-        "credit_left_eur": first_credit_amount(spanish_ledgers, "solarWalletCreditLeft"),
-        "relationships_count": len(ledgers),
+        "has_solar_wallet": bool(solar_ledgers),
+        "available_credit_eur": balance,
+        "credit_left_eur": balance,
+        "relationships_count": len(relationships),
         "relationships": [
             {
-                "target_ledger_hash": stable_hash(item.get("targetLedger")),
-                "target_given_name_present": bool(item.get("targetGivenName")),
+                "target_ledger_hash": stable_hash(item.get("ledgerNumber")),
+                "target_account_hash": stable_hash(item.get("accountNumber")),
                 "valid_from": item.get("validFrom"),
                 "valid_to": item.get("validTo"),
             }
-            for item in ledgers
+            for item in relationships
         ],
     }
 
@@ -176,34 +225,26 @@ def summarize_solar_wallet(payload: dict[str, Any]) -> dict[str, Any]:
 def summarize_intelligent_go(
     payload: dict[str, Any], dispatches_payload: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    """Map KrakenFlex/Intelligent Go fields without exposing device IDs."""
+    """Map modern devices and dispatches without exposing device IDs."""
 
     data = payload.get("data") or {}
-    device = data.get("registeredKrakenflexDevice") or {}
-    limit = device.get("stateOfChargeLimit") or {}
+    devices = data.get("devices") or []
+    device = devices[0] if devices else {}
+    status = device.get("status") or {}
     dispatches = ((dispatches_payload or {}).get("data") or {}).get("flexPlannedDispatches") or []
     return {
         "eligible_device_types": data.get("eligibleDeviceTypes") or [],
         "registered_device": {
-            "present": any(value is not None for key, value in device.items() if key != "krakenflexDeviceId"),
+            "present": bool(device),
+            "device_type": device.get("deviceType"),
             "provider": device.get("provider"),
-            "vehicle_make": device.get("vehicleMake"),
-            "vehicle_model": device.get("vehicleModel"),
-            "vehicle_battery_size_kwh": amount_value(device.get("vehicleBatterySizeInKwh")),
-            "charge_point_make": device.get("chargePointMake"),
-            "charge_point_model": device.get("chargePointModel"),
-            "charge_point_power_kw": amount_value(device.get("chargePointPowerInKw")),
-            "status": device.get("status"),
-            "suspended": device.get("suspended"),
-            "has_token": device.get("hasToken"),
-            "created_at": device.get("createdAt"),
-            "state_of_charge_limit": {
-                "upper_soc_limit": limit.get("upperSocLimit"),
-                "timestamp": limit.get("timestamp"),
-                "is_limit_violated": limit.get("isLimitViolated"),
-            },
-            "test_dispatch_failure_reason": device.get("testDispatchFailureReason"),
+            "name_present": bool(device.get("name")),
+            "property_hash": stable_hash(device.get("propertyId")),
+            "status": status.get("current"),
+            "suspended": status.get("isSuspended"),
+            "state": status.get("currentState"),
         },
+        "registered_devices_count": len(devices),
         "planned_dispatches": [
             {
                 "start": item.get("start"),
@@ -258,19 +299,27 @@ def summarize_credits(payload: dict[str, Any]) -> dict[str, Any]:
         if amount is not None:
             reason_amounts[reason] = reason_amounts.get(reason, 0.0) + amount
         credits.append({"amount": amount, "created_at": date_only(node.get("createdAt")), "reason_code": reason})
+    connection = ((ledgers[0] if ledgers else {}).get("transactions") or {})
     return {
         "count": len(credits),
+        "truncated": bool(connection.get("truncated")),
         "reason_code_counts": reason_counts,
         "reason_code_amounts": {key: round(value, 6) for key, value in sorted(reason_amounts.items())},
         "recent_credits": credits[:12],
     }
 
 
-def credit_amount_eur(value: Any) -> float | None:
-    """Return credit amount in EUR from Kraken minor-unit gross values."""
+def minor_amount_eur(value: Any) -> float | None:
+    """Convert a Kraken monetary amount from minor units to EUR."""
 
     parsed = amount_value(value)
     return round(parsed / 100, 6) if parsed is not None else None
+
+
+def credit_amount_eur(value: Any) -> float | None:
+    """Return credit amount in EUR from Kraken minor-unit gross values."""
+
+    return minor_amount_eur(value)
 
 
 def first_credit_amount(items: list[dict[str, Any]], key: str) -> float | None:
@@ -286,9 +335,14 @@ def first_credit_amount(items: list[dict[str, Any]], key: str) -> float | None:
 def summarize_measurements(payload: dict[str, Any]) -> dict[str, Any]:
     """Summarize measurement connection into points and totals."""
 
-    edges = ((((payload.get("data") or {}).get("property") or {}).get("measurements") or {}).get("edges")) or []
+    connection = (((payload.get("data") or {}).get("property") or {}).get("measurements") or {})
+    edges = connection.get("edges") or []
     points = [measurement_point(edge.get("node") or {}) for edge in edges]
-    return measurement_totals([point for point in points if point])
+    return measurement_totals(
+        [point for point in points if point],
+        total_count=connection.get("totalCount"),
+        truncated=bool(connection.get("truncated")),
+    )
 
 
 def measurement_point(node: dict[str, Any]) -> dict[str, Any] | None:
@@ -318,7 +372,9 @@ def measurement_cost(stats: list[dict[str, Any]], key: str) -> float | None:
     return None
 
 
-def measurement_totals(points: list[dict[str, Any]]) -> dict[str, Any]:
+def measurement_totals(
+    points: list[dict[str, Any]], *, total_count: int | None = None, truncated: bool = False
+) -> dict[str, Any]:
     """Return graph-ready measurement values and rolling summaries."""
 
     daily_rollups = measurement_rollups(points, complete_daily_only=True)
@@ -328,10 +384,12 @@ def measurement_totals(points: list[dict[str, Any]]) -> dict[str, Any]:
     period_series = measurement_period_series(points)
     api_cost = rollups["last_365_days_cost_eur"]
     return {
-        "points": points[-744:],
+        "points": points,
         "series": series,
         "period_series": period_series,
         "points_count": rollups["points_count"],
+        "total_count": total_count,
+        "truncated": truncated,
         "complete_daily_points_count": daily_rollups["points_count"],
         "total_consumption_kwh": rollups["last_365_days_consumption_kwh"],
         "total_cost_eur": api_cost,
@@ -364,9 +422,9 @@ def build_data(
         account_hash=selection.account_hash,
         property_hash=selection.property_hash,
         tariff=tariff_data(product, agreement, prices, variable_terms, fixed_terms),
-        billing=billing_data(last_statement),
+        billing=billing_data(last_statement, invoices),
         invoices=invoices,
-        balances={"credit_balance": amount_value(electricity_billing.get("balance"))},
+        balances={"credit_balance": minor_amount_eur(electricity_billing.get("balance"))},
         credits=credits,
         measurements=measurements or {},
         solar_wallet=solar_wallet or {},
@@ -377,24 +435,101 @@ def build_data(
 def tariff_data(
     product: dict[str, Any], agreement: dict[str, Any], prices: dict[str, Any], variable_terms: list[Any], fixed_terms: list[Any]
 ) -> dict[str, Any]:
-    """Map tariff/agreement data."""
+    """Map tariff/agreement data while preserving every price term."""
 
+    variable_prices = [amount_value(value) for value in variable_terms]
+    variable_prices_with_taxes = [amount_value(value) for value in prices.get("variableTermWithTaxes") or []]
+    fixed_prices = [amount_value(value) for value in fixed_terms]
+    fixed_prices_with_taxes = [amount_value(value) for value in prices.get("fixedTermWithTaxes") or []]
+    period_prices = spanish_period_prices(variable_prices)
+    period_prices_with_taxes = spanish_period_prices(variable_prices_with_taxes)
+    code = str(product.get("code") or "")
+    params = product.get("params")
+    product_params = parse_product_params(params)
+    sun_club = sun_club_included(code, product_params)
     return {
         "name": product.get("displayName"),
         "code": product.get("code"),
         "valid_to": date_only(agreement.get("validTo")),
-        "base_energy_price": amount_value(variable_terms[0]) if variable_terms else None,
-        "power_price_period_1": amount_value(fixed_terms[0]) if fixed_terms else None,
-        "power_price_period_2": amount_value(fixed_terms[1]) if len(fixed_terms) > 1 else None,
+        "base_energy_price": variable_prices[0] if variable_prices else None,
+        "base_energy_price_with_taxes": variable_prices_with_taxes[0] if variable_prices_with_taxes else None,
+        "variable_prices": variable_prices,
+        "variable_prices_with_taxes": variable_prices_with_taxes,
+        "period_prices": period_prices,
+        "period_prices_with_taxes": period_prices_with_taxes,
+        "fixed_prices": fixed_prices,
+        "fixed_prices_with_taxes": fixed_prices_with_taxes,
+        "power_price_period_1": fixed_prices[0] if fixed_prices else None,
+        "power_price_period_2": fixed_prices[1] if len(fixed_prices) > 1 else None,
         "surplus_rate": amount_value(prices.get("surplusRate")),
+        "sun_club_enabled": sun_club,
+        "prices_include_taxes": bool(variable_prices_with_taxes),
+        "variable_term_units": prices.get("variableTermUnits"),
+        "fixed_term_units": prices.get("fixedTermUnits"),
     }
 
 
-def billing_data(last_statement: dict[str, Any]) -> dict[str, Any]:
-    """Map latest billing statement data."""
+def spanish_period_prices(values: list[float | None]) -> dict[str, float]:
+    """Associate API's P1/P2/P3 sequence with Punta/Llano/Valle."""
 
+    if len(values) == 1 and values[0] is not None:
+        return {period: values[0] for period in ("punta", "llano", "valle")}
+    names = ("punta", "llano", "valle")
+    return {name: value for name, value in zip(names, values) if value is not None}
+
+
+def parse_product_params(value: Any) -> dict[str, Any]:
+    """Parse the JSONString product parameters without failing the mapper."""
+
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list):
+        parsed: dict[str, Any] = {}
+        for item in value:
+            if isinstance(item, dict):
+                parsed.update(item)
+        return parsed
+    if isinstance(value, str):
+        import json
+
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return decoded if isinstance(decoded, dict) else {}
+    return {}
+
+
+def sun_club_included(product_code: str, params: dict[str, Any]) -> bool:
+    """Return true only when the active product identifies Sun Club."""
+
+    normalized_code = product_code.lower().replace("_", "").replace("-", "")
+    if "sunclub" in normalized_code:
+        return True
+    return any(
+        params.get(key) is True
+        for key in ("has_sun_club", "is_sun_club", "sun_club_enabled")
+    )
+
+
+def billing_data(
+    last_statement: dict[str, Any], invoices: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """Map latest invoice, preferring the modern invoice connection."""
+
+    latest = next(
+        (invoice for invoice in invoices or [] if not invoice.get("annulled")),
+        {},
+    )
+    if latest:
+        return {
+            "last_invoice_amount": latest.get("amount_eur"),
+            "last_invoice_issued": latest.get("issued_date"),
+            "last_invoice_period_start": latest.get("period_start"),
+            "last_invoice_period_end": latest.get("period_end"),
+        }
     return {
-        "last_invoice_amount": amount_value(last_statement.get("amount")),
+        "last_invoice_amount": minor_amount_eur(last_statement.get("amount")),
         "last_invoice_issued": date_only(last_statement.get("issuedDate")),
         "last_invoice_period_start": date_only(last_statement.get("consumptionStartDate")),
         "last_invoice_period_end": date_only(last_statement.get("consumptionEndDate")),

@@ -10,6 +10,13 @@
           "password": "Contraseña"
         }
       },
+      "account": {
+        "title": "Seleccionar cuenta y propiedad",
+        "description": "Selecciona explícitamente el suministro eléctrico que quieres configurar. Solo se muestran hashes redacted.",
+        "data": {
+          "selection": "Cuenta y propiedad"
+        }
+      },
       "reauth_confirm": {
         "title": "Actualizar credenciales de Octopus",
         "description": "La sesión de Octopus ha caducado o las credenciales ya no son válidas.",
@@ -21,7 +28,9 @@
     },
     "error": {
       "cannot_connect": "No se pudo conectar con Octopus Energy Spain.",
-      "invalid_auth": "Credenciales no válidas."
+      "invalid_auth": "Credenciales no válidas.",
+      "no_usable_account": "No se encontró una cuenta eléctrica utilizable.",
+      "multiple_accounts": "Hay varias cuentas o propiedades utilizables. Configura una entrada separada con una selección explícita."
     },
     "abort": {
       "already_configured": "Esta cuenta de Octopus ya está configurada.",

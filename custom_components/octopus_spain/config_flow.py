@@ -32,30 +32,38 @@ def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Required(CONF_EMAIL, default=defaults.get(CONF_EMAIL, "")): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.EMAIL)
             ),
-            vol.Required(CONF_PASSWORD): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.PASSWORD)
-            ),
+            vol.Required(
+                CONF_PASSWORD,
+                default=defaults.get(CONF_PASSWORD, vol.UNDEFINED),
+            ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
         }
     )
 
 
-async def _validate_input(hass: HomeAssistant, user_input: dict[str, Any]) -> dict[str, Any]:
+def _selection_unique_id(data: dict[str, Any]) -> str:
+    return f"{data[CONF_ACCOUNT_HASH]}_{data[CONF_PROPERTY_HASH]}"
+
+
+async def _validate_input(hass: HomeAssistant, user_input: dict[str, Any]) -> list[dict[str, Any]]:
     client = OctopusSpainClient(
         async_get_clientsession(hass),
         user_input[CONF_EMAIL],
         user_input[CONF_PASSWORD],
     )
-    selection = await client.async_validate_login()
-    return {
-        CONF_EMAIL: user_input[CONF_EMAIL],
-        CONF_PASSWORD: user_input[CONF_PASSWORD],
-        CONF_ACCOUNT_NUMBER: selection.account_number,
-        CONF_PROPERTY_ID: selection.property_id,
-        CONF_LEDGER_NUMBER: selection.ledger_number,
-        CONF_AGREEMENT_ID: selection.agreement_id,
-        CONF_ACCOUNT_HASH: selection.account_hash,
-        CONF_PROPERTY_HASH: selection.property_hash,
-    }
+    selections = await client.async_validate_login()
+    return [
+        {
+            CONF_EMAIL: user_input[CONF_EMAIL],
+            CONF_PASSWORD: user_input[CONF_PASSWORD],
+            CONF_ACCOUNT_NUMBER: selection.account_number,
+            CONF_PROPERTY_ID: selection.property_id,
+            CONF_LEDGER_NUMBER: selection.ledger_number,
+            CONF_AGREEMENT_ID: selection.agreement_id,
+            CONF_ACCOUNT_HASH: selection.account_hash,
+            CONF_PROPERTY_HASH: selection.property_hash,
+        }
+        for selection in selections
+    ]
 
 
 class OctopusSpainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -63,23 +71,55 @@ class OctopusSpainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    def __init__(self) -> None:
+        self._selection_candidates: list[dict[str, Any]] = []
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle a flow initialized by the user."""
 
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
-                data = await _validate_input(self.hass, user_input)
+                selections = await _validate_input(self.hass, user_input)
+                if not selections:
+                    errors["base"] = "no_usable_account"
+                    return self.async_show_form(step_id="user", data_schema=_schema(user_input), errors=errors)
+                if len(selections) > 1:
+                    self._selection_candidates = selections
+                    return await self.async_step_account()
+                data = selections[0]
             except OctopusSpainAuthError:
                 errors["base"] = "invalid_auth"
             except OctopusSpainError:
                 errors["base"] = "cannot_connect"
             else:
-                await self.async_set_unique_id(data[CONF_ACCOUNT_HASH])
+                await self.async_set_unique_id(_selection_unique_id(data))
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(title="Octopus Energy Spain", data=data)
 
         return self.async_show_form(step_id="user", data_schema=_schema(user_input), errors=errors)
+
+    async def async_step_account(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Let the user explicitly choose an account/property pair."""
+
+        choices = {
+            str(index): f"Cuenta {data[CONF_ACCOUNT_HASH]} · Propiedad {data[CONF_PROPERTY_HASH]}"
+            for index, data in enumerate(self._selection_candidates)
+        }
+        if user_input is not None:
+            index = int(user_input["selection"])
+            if index < 0 or index >= len(self._selection_candidates):
+                return self.async_abort(reason="no_usable_account")
+            data = self._selection_candidates[index]
+            await self.async_set_unique_id(_selection_unique_id(data))
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(title="Octopus Energy Spain", data=data)
+        return self.async_show_form(
+            step_id="account",
+            data_schema=vol.Schema({vol.Required("selection"): vol.In(choices)}),
+        )
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
         """Handle reauthentication requested by the coordinator."""
@@ -98,13 +138,22 @@ class OctopusSpainConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None and entry is not None:
             merged_input = {**user_input, CONF_EMAIL: user_input.get(CONF_EMAIL) or defaults[CONF_EMAIL]}
             try:
-                data = await _validate_input(self.hass, merged_input)
+                selections = await _validate_input(self.hass, merged_input)
+                matching = [
+                    data
+                    for data in selections
+                    if data[CONF_ACCOUNT_HASH] == entry.data.get(CONF_ACCOUNT_HASH)
+                    and data[CONF_PROPERTY_HASH] == entry.data.get(CONF_PROPERTY_HASH)
+                ]
+                if not matching:
+                    return self.async_abort(reason="wrong_account")
+                data = matching[0]
             except OctopusSpainAuthError:
                 errors["base"] = "invalid_auth"
             except OctopusSpainError:
                 errors["base"] = "cannot_connect"
             else:
-                await self.async_set_unique_id(data[CONF_ACCOUNT_HASH])
+                await self.async_set_unique_id(_selection_unique_id(data))
                 self._abort_if_unique_id_mismatch(reason="wrong_account")
                 return self.async_update_reload_and_abort(entry, data_updates=data)
 

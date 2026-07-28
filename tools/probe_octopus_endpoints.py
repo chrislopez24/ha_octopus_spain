@@ -121,6 +121,7 @@ MEASUREMENTS_QUERY = """
 query getAccountMeasurements(
   $propertyId: ID!
   $first: Int!
+  $after: String
   $utilityFilters: [UtilityFiltersInput!]
   $startOn: Date
   $endOn: Date
@@ -131,6 +132,7 @@ query getAccountMeasurements(
   property(id: $propertyId) {
     measurements(
       first: $first
+      after: $after
       utilityFilters: $utilityFilters
       startOn: $startOn
       endOn: $endOn
@@ -138,6 +140,11 @@ query getAccountMeasurements(
       endAt: $endAt
       timezone: $timezone
     ) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
       edges {
         node {
           value
@@ -314,7 +321,13 @@ def summarize_agreement(payload: dict[str, Any]) -> dict[str, Any]:
         "product_code_present": bool(product.get("code")),
         "valid_to_present": bool(agreement.get("validTo")),
         "variable_terms_count": len(prices.get("variableTerm") or []),
+        "variable_terms_with_taxes_count": len(prices.get("variableTermWithTaxes") or []),
         "fixed_terms_count": len(prices.get("fixedTerm") or []),
+        "fixed_terms_with_taxes_count": len(prices.get("fixedTermWithTaxes") or []),
+        "sun_club_product_marker_present": "sunclub" in " ".join(
+            str(value)
+            for value in (product.get("code"), product.get("params"))
+        ).lower().replace("-", "").replace("_", ""),
         "surplus_rate_present": prices.get("surplusRate") is not None,
     }
 
@@ -414,13 +427,17 @@ def summarize_linked_supply(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def summarize_measurements(payload: dict[str, Any]) -> dict[str, Any]:
-    measurements = (((payload.get("data") or {}).get("property") or {}).get("measurements") or {}).get("edges") or []
+    connection = (((payload.get("data") or {}).get("property") or {}).get("measurements") or {})
+    measurements = connection.get("edges") or []
     first_node = (measurements[0].get("node") or {}) if measurements else {}
     last_node = (measurements[-1].get("node") or {}) if measurements else {}
     stats = ((first_node.get("metaData") or {}).get("statistics")) or []
     units = sorted({(edge.get("node") or {}).get("unit") for edge in measurements if (edge.get("node") or {}).get("unit")})
     return {
         "edges_count": len(measurements),
+        "total_count_present": connection.get("totalCount") is not None,
+        "has_next_page": (connection.get("pageInfo") or {}).get("hasNextPage"),
+        "end_cursor_present": bool((connection.get("pageInfo") or {}).get("endCursor")),
         "units": units,
         "unit_present": bool(first_node.get("unit")),
         "first_interval_start_present": bool(first_node.get("startAt")),
@@ -555,7 +572,7 @@ async def main() -> int:
                 "AccountCreditsQuery",
                 "AccountCreditsQuery",
                 CREDITS_QUERY,
-                {"accountNumber": selection.account_number, "ledgerNumber": selection.ledger_number, "after": None},
+                {"accountNumber": selection.account_number, "ledgerNumber": selection.ledger_number, "fromDate": f"{datetime.now().year - 5}-01-01", "after": None},
                 summarize_credits,
             )
         if bills_payload and selection.account_number and selection.ledger_number:

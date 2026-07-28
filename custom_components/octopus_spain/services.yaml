@@ -8,6 +8,11 @@ get_invoice_document:
 
 get_invoices:
   fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: octopus_spain
     limit:
       required: false
       default: 12
@@ -19,10 +24,20 @@ get_invoices:
           mode: box
 
 get_latest_invoice_document:
-  fields: {}
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: octopus_spain
 
 get_invoice_document_by_index:
   fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: octopus_spain
     index:
       required: true
       example: 0
@@ -34,6 +49,11 @@ get_invoice_document_by_index:
 
 get_measurements:
   fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: octopus_spain
     start_date:
       required: false
       example: "2026-04-01"
@@ -41,6 +61,7 @@ get_measurements:
         date:
     end_date:
       required: false
+      description: "Fecha final exclusiva: 2026-05-01 devuelve datos hasta 2026-04-30 inclusive."
       example: "2026-05-01"
       selector:
         date:

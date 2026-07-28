@@ -12,6 +12,7 @@ number, CUPS, address, invoice amounts or signed URLs are printed.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from dataclasses import dataclass
 from hashlib import sha256
 import json
@@ -78,9 +79,11 @@ query Agreement($id: ID!) {
     product {
       displayName
       code
-      prices {
+      prices(decimalPlaces: 6, powerDecimalPlaces: 6) {
         fixedTerm
         variableTerm
+        fixedTermWithTaxes
+        variableTermWithTaxes
         fixedTermUnits
         variableTermUnits
         dailyFee
@@ -128,6 +131,12 @@ query Bills($accountNumber: String!, $ledgerNumber: String!, $first: Int!, $afte
             pdfUrl
             consumptionStartDate: earliestChargeAt
             consumptionEndDate: latestChargeAt
+            invoicedAmount
+            issuedDate: firstIssued
+            isHeld
+            annulledBy {
+              id
+            }
           }
         }
         pageInfo {
@@ -141,10 +150,10 @@ query Bills($accountNumber: String!, $ledgerNumber: String!, $first: Int!, $afte
 """
 
 CREDITS_QUERY = """
-query AccountCreditsQuery($accountNumber: String!, $ledgerNumber: String, $after: String) {
+query AccountCreditsQuery($accountNumber: String!, $ledgerNumber: String, $fromDate: Date!, $after: String) {
   account(accountNumber: $accountNumber) {
     ledgers(ledgerNumber: $ledgerNumber) {
-      transactions(fromDate: "2025-01-01", first: 100, after: $after) {
+      transactions(fromDate: $fromDate, first: 100, after: $after) {
         pageInfo {
           hasNextPage
           endCursor
@@ -406,7 +415,7 @@ async def main() -> int:
                     session,
                     "AccountCreditsQuery",
                     CREDITS_QUERY,
-                    {"accountNumber": selection.account_number, "ledgerNumber": selection.ledger_number, "after": None},
+                    {"accountNumber": selection.account_number, "ledgerNumber": selection.ledger_number, "fromDate": f"{datetime.now().year - 5}-01-01", "after": None},
                 )
                 print_status("AccountCreditsQuery", "ok")
                 print_status("credit_transactions", "count", count_credits(credits))

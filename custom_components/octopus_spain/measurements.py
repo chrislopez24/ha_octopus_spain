@@ -68,20 +68,24 @@ def estimated_energy_costs_from_hourly(
     daily_points: list[dict[str, Any]],
     hourly_points: list[dict[str, Any]],
     *,
-    base_energy_price: float | None,
+    variable_prices: dict[str, float] | None = None,
+    base_energy_price: float | None = None,
+    sun_club_enabled: bool = False,
     sun_club_discount: float,
     sun_club_start_hour: int,
     sun_club_end_hour: int,
 ) -> dict[str, Any]:
-    """Estimate energy-only costs from hourly kWh and the current Sun Club tariff."""
+    """Estimate energy-only costs using the contracted Spanish time periods."""
 
-    if base_energy_price is None:
+    prices = variable_prices or _single_price_by_period(base_energy_price)
+    if not prices or any(prices.get(period) is None for period in ("punta", "llano", "valle")):
         return _empty_estimated_costs("unavailable")
     daily_dates = {point.start.date().isoformat() for point in normalize_measurement_points(daily_points, complete_daily_only=True)}
     costs_by_date = _estimated_costs_by_date(
         normalize_measurement_points(hourly_points),
         daily_dates,
-        base_energy_price,
+        prices,
+        sun_club_enabled,
         sun_club_discount,
         sun_club_start_hour,
         sun_club_end_hour,
@@ -190,7 +194,7 @@ def _period_bucket_series(
     for point in points:
         key = key_fn(point)
         bucket = buckets.setdefault(key, {"punta_kwh": 0.0, "llano_kwh": 0.0, "valle_kwh": 0.0})
-        bucket[f"{_spanish_period(point.start)}_kwh"] += point.kwh
+        bucket[f"{spanish_period(point.start)}_kwh"] += point.kwh
     return [_period_row(key_name, key, bucket) for key, bucket in sorted(buckets.items())]
 
 
@@ -201,7 +205,9 @@ def _period_row(key_name: str, key: str, bucket: dict[str, float]) -> dict[str, 
     return {key_name: key, "total_kwh": round(punta + llano + valle, 6), "punta_kwh": punta, "llano_kwh": llano, "valle_kwh": valle}
 
 
-def _spanish_period(value: datetime) -> str:
+def spanish_period(value: datetime) -> str:
+    """Return the Spanish 2.0TD energy period for a local timestamp."""
+
     if value.weekday() >= 5:
         return "valle"
     if 10 <= value.hour < 14 or 18 <= value.hour < 22:
@@ -214,7 +220,8 @@ def _spanish_period(value: datetime) -> str:
 def _estimated_costs_by_date(
     points: list[MeasurementPoint],
     daily_dates: set[str],
-    base_price: float,
+    prices: dict[str, float],
+    sun_club_enabled: bool,
     discount: float,
     start_hour: int,
     end_hour: int,
@@ -224,9 +231,20 @@ def _estimated_costs_by_date(
         key = point.start.date().isoformat()
         if key not in daily_dates:
             continue
-        price = base_price * (1 - discount) if start_hour <= point.start.hour < end_hour else base_price
+        period = spanish_period(point.start)
+        price = prices[period]
+        if sun_club_enabled and start_hour <= point.start.hour < end_hour:
+            price *= 1 - discount
         costs[key] = costs.get(key, 0.0) + point.kwh * price
     return {key: round(value, 6) for key, value in sorted(costs.items())}
+
+
+def _single_price_by_period(price: float | None) -> dict[str, float] | None:
+    """Represent a single-period tariff consistently across Spanish periods."""
+
+    if price is None:
+        return None
+    return {"punta": price, "llano": price, "valle": price}
 
 
 def _cost_point(date_key: str, cost: float) -> MeasurementPoint:

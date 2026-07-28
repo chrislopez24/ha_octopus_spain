@@ -14,20 +14,25 @@ from .api import OctopusSpainError
 from .const import DOMAIN
 from .model import OctopusSpainRuntimeData
 from .const import SUN_CLUB_DISCOUNT, SUN_CLUB_END_HOUR, SUN_CLUB_START_HOUR
-from .service_helpers import madrid_midnight_range, service_date_range
+from .service_helpers import madrid_midnight_range, select_runtime_data, service_date_range
 
 GET_INVOICE_DOCUMENT_SCHEMA = vol.Schema({vol.Required("invoice_id_hash"): cv.string})
+CONFIG_ENTRY_FIELD = {vol.Optional("config_entry_id"): cv.string}
 GET_INVOICE_DOCUMENT_BY_INDEX_SCHEMA = vol.Schema(
-    {vol.Required("index"): vol.All(int, vol.Range(min=0, max=23))}
+    {vol.Required("index"): vol.All(int, vol.Range(min=0, max=23)), **CONFIG_ENTRY_FIELD}
 )
 GET_INVOICES_SCHEMA = vol.Schema(
-    {vol.Optional("limit", default=12): vol.All(int, vol.Range(min=1, max=24))}
+    {
+        vol.Optional("limit", default=12): vol.All(int, vol.Range(min=1, max=24)),
+        **CONFIG_ENTRY_FIELD,
+    }
 )
 GET_MEASUREMENTS_SCHEMA = vol.Schema(
     {
         vol.Optional("start_date"): cv.date,
         vol.Optional("end_date"): cv.date,
         vol.Optional("frequency", default="DAY_INTERVAL"): vol.In(["DAY_INTERVAL", "HOUR_INTERVAL"]),
+        **CONFIG_ENTRY_FIELD,
     }
 )
 
@@ -55,6 +60,7 @@ def async_register_services(hass: HomeAssistant) -> None:
         DOMAIN,
         "get_latest_invoice_document",
         _async_get_invoice_document_by_index(hass, default_index=0),
+        schema=vol.Schema(CONFIG_ENTRY_FIELD),
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(
@@ -93,7 +99,7 @@ def _async_get_invoice_document_by_index(hass: HomeAssistant, default_index: int
     async def handler(call: ServiceCall) -> ServiceResponse:
         """Return a signed invoice URL by recent invoice index."""
 
-        runtime = first_runtime_data(hass)
+        runtime = runtime_data_for_call(hass, call.data)
         index = default_index if default_index is not None else call.data["index"]
         try:
             document = await runtime.client.async_get_invoice_document_by_index(index)
@@ -111,7 +117,7 @@ def _async_get_invoices(hass: HomeAssistant):
     async def handler(call: ServiceCall) -> ServiceResponse:
         """Return a redacted list of recent invoices."""
 
-        runtime = first_runtime_data(hass)
+        runtime = runtime_data_for_call(hass, call.data)
         selection = runtime.coordinator.selection
         try:
             return await runtime.client.async_get_invoices_response(
@@ -132,24 +138,26 @@ def _async_get_measurements(hass: HomeAssistant):
     async def handler(call: ServiceCall) -> ServiceResponse:
         """Return redacted consumption/cost measurements for a date range."""
 
-        runtime = first_runtime_data(hass)
+        runtime = runtime_data_for_call(hass, call.data)
         selection = runtime.coordinator.selection
         service_range = service_date_range(call.data)
         try:
             if call.data["frequency"] == "DAY_INTERVAL":
                 start_at, end_at = madrid_midnight_range(service_range)
-                base_energy_price = (runtime.coordinator.data.tariff if runtime.coordinator.data else {}).get("base_energy_price")
+                tariff = runtime.coordinator.data.tariff if runtime.coordinator.data else {}
                 return {
                     "frequency": call.data["frequency"],
                     **await runtime.client.async_measurement_dashboard_data(
                         selection.property_id,
                         start_at,
                         end_at,
-                        base_energy_price,
-                        SUN_CLUB_DISCOUNT,
-                        SUN_CLUB_START_HOUR,
-                        SUN_CLUB_END_HOUR,
-                        max(1, (service_range.end - service_range.start).days),
+                        variable_prices=tariff.get("period_prices"),
+                        base_energy_price=tariff.get("base_energy_price"),
+                        sun_club_enabled=bool(tariff.get("sun_club_enabled")),
+                        sun_club_discount=SUN_CLUB_DISCOUNT,
+                        sun_club_start_hour=SUN_CLUB_START_HOUR,
+                        sun_club_end_hour=SUN_CLUB_END_HOUR,
+                        days=max(1, (service_range.end - service_range.start).days),
                     ),
                 }
             return await runtime.client.async_get_measurements_response(
@@ -167,12 +175,21 @@ def _async_get_measurements(hass: HomeAssistant):
     return handler
 
 
-def first_runtime_data(hass: HomeAssistant) -> OctopusSpainRuntimeData:
-    """Return runtime data for the first configured Octopus entry."""
+def runtime_data_for_call(
+    hass: HomeAssistant, data: dict[str, Any]
+) -> OctopusSpainRuntimeData:
+    """Resolve a service target explicitly when more than one entry is loaded."""
 
-    for runtime in iter_runtime_data(hass):
-        return runtime
-    raise HomeAssistantError("Octopus Spain is not configured")
+    try:
+        return select_runtime_data(hass.config_entries.async_entries(DOMAIN), data)
+    except ValueError as err:
+        raise HomeAssistantError(str(err)) from err
+
+
+def first_runtime_data(hass: HomeAssistant) -> OctopusSpainRuntimeData:
+    """Return the sole runtime data, rejecting ambiguous configurations."""
+
+    return runtime_data_for_call(hass, {})
 
 
 def iter_runtime_data(hass: HomeAssistant):

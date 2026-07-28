@@ -125,7 +125,7 @@ async def main() -> int:
             session,
             "AccountCreditsQuery",
             CREDITS_QUERY,
-            {"accountNumber": selection.account_number, "ledgerNumber": selection.ledger_number, "after": None},
+            {"accountNumber": selection.account_number, "ledgerNumber": selection.ledger_number, "fromDate": f"{datetime.now().year - 5}-01-01", "after": None},
             token,
         )
         credits_summary = summarize_credits(credits)

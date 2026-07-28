@@ -30,8 +30,10 @@ from .graphql_queries import (
 )
 from .measurements import estimated_energy_costs_from_hourly
 from .mappers import (
+    account_selections,
     build_data,
     first_edge_node,
+    minor_amount_eur,
     select_default_account,
     summarize_credits,
     summarize_intelligent_go,
@@ -45,6 +47,10 @@ _LOGGER = logging.getLogger(__name__)
 MADRID = ZoneInfo("Europe/Madrid")
 TOKEN_REFRESH_MARGIN_SECONDS = 300
 REFRESH_TOKEN_REFRESH_MARGIN_SECONDS = 86400
+MEASUREMENT_PAGE_SIZE = 744
+MAX_MEASUREMENT_POINTS = 10_000
+CREDIT_HISTORY_YEARS = 5
+MAX_CREDIT_TRANSACTIONS = 5_000
 
 
 class OctopusSpainError(Exception):
@@ -57,6 +63,18 @@ class OctopusSpainAuthError(OctopusSpainError):
 
 class OctopusSpainGraphQLError(OctopusSpainError):
     """GraphQL returned an application-level error."""
+
+
+class OctopusSpainPermissionError(OctopusSpainGraphQLError):
+    """Credentials are valid but the operation is not permitted."""
+
+
+class OctopusSpainRateLimitError(OctopusSpainGraphQLError):
+    """Kraken rate-limited the operation."""
+
+
+class OctopusSpainTemporaryError(OctopusSpainGraphQLError):
+    """Kraken reported a retryable temporary failure."""
 
 
 def _iso_z(value: datetime) -> str:
@@ -143,11 +161,11 @@ class OctopusSpainClient:
         elif not used_refresh_token:
             self._refresh_expires_at = None
 
-    async def async_validate_login(self) -> AccountSelection:
-        """Validate credentials and return a default account selection."""
+    async def async_validate_login(self) -> list[AccountSelection]:
+        """Validate credentials and return every usable account selection."""
 
         await self.async_login()
-        return self.select_default_account(await self.async_viewer_account(), await self.async_viewer_property())
+        return account_selections(await self.async_viewer_account(), await self.async_viewer_property())
 
     async def async_viewer_account(self) -> dict[str, Any]:
         """Fetch account/ledger data."""
@@ -210,21 +228,49 @@ class OctopusSpainClient:
 
         if not ledger_number:
             return {}
-        payload = await self.async_graphql(
-            "AccountCreditsQuery",
-            CREDITS_QUERY,
-            {"accountNumber": account_number, "ledgerNumber": ledger_number, "after": None},
-        )
-        return summarize_credits(payload)
+        after = None
+        edges: list[dict[str, Any]] = []
+        from_date = date(date.today().year - CREDIT_HISTORY_YEARS, 1, 1).isoformat()
+        while True:
+            payload = await self.async_graphql(
+                "AccountCreditsQuery",
+                CREDITS_QUERY,
+                {
+                    "accountNumber": account_number,
+                    "ledgerNumber": ledger_number,
+                    "fromDate": from_date,
+                    "after": after,
+                },
+            )
+            ledgers = (((payload.get("data") or {}).get("account") or {}).get("ledgers")) or []
+            connection = ((ledgers[0] if ledgers else {}).get("transactions") or {})
+            page_edges = connection.get("edges") or []
+            remaining = MAX_CREDIT_TRANSACTIONS - len(edges)
+            edges.extend(page_edges[:remaining])
+            page_info = connection.get("pageInfo") or {}
+            has_next_page = bool(page_info.get("hasNextPage"))
+            if len(edges) >= MAX_CREDIT_TRANSACTIONS:
+                return summarize_credits(
+                    self._credits_payload(edges, truncated=has_next_page or len(page_edges) > remaining)
+                )
+            if not has_next_page:
+                return summarize_credits(self._credits_payload(edges, truncated=False))
+            next_cursor = page_info.get("endCursor")
+            if not next_cursor or next_cursor == after:
+                raise OctopusSpainGraphQLError(
+                    "Credits indicated another page without a usable next cursor"
+                )
+            after = next_cursor
 
     async def async_solar_wallet(self, account_number: str, ledger_number: str | None) -> dict[str, Any]:
         """Fetch Solar Wallet fields when Kraken exposes them for the account."""
 
+        del ledger_number
         try:
             payload = await self.async_graphql(
                 "SolarWallet",
                 SOLAR_WALLET_QUERY,
-                {"accountNumber": account_number, "ledgerNumber": ledger_number},
+                {"accountNumber": account_number},
             )
         except OctopusSpainGraphQLError as err:
             _LOGGER.debug("Solar Wallet fields are unavailable: %s", err)
@@ -238,15 +284,20 @@ class OctopusSpainClient:
             payload = await self.async_graphql(
                 "KrakenFlex",
                 KRAKENFLEX_QUERY,
-                {"accountNumber": account_number, "propertyId": self._property_id_int(property_id)},
+                {
+                    "accountNumber": account_number,
+                    "propertyId": self._property_id_int(property_id),
+                    "propertyIdString": property_id,
+                },
             )
         except OctopusSpainGraphQLError as err:
             _LOGGER.debug("KrakenFlex fields are unavailable: %s", err)
             return {"available": False, "error": "unavailable"}
 
-        device = ((payload.get("data") or {}).get("registeredKrakenflexDevice")) or {}
+        devices = ((payload.get("data") or {}).get("devices")) or []
         dispatches_payload = None
-        device_id = device.get("krakenflexDeviceId")
+        device = devices[0] if devices else {}
+        device_id = device.get("id")
         if device_id:
             try:
                 dispatches_payload = await self.async_graphql(
@@ -270,19 +321,48 @@ class OctopusSpainClient:
 
         if not property_id:
             return {}
-        variables = self._measurement_variables(property_id, start_at, end_at, frequency, first)
-        payload = await self.async_graphql("getAccountMeasurements", MEASUREMENTS_QUERY, variables)
-        return summarize_measurements(payload)
+        page_size = max(1, min(first, MEASUREMENT_PAGE_SIZE))
+        after = None
+        edges: list[dict[str, Any]] = []
+        total_count: int | None = None
+        while True:
+            variables = self._measurement_variables(
+                property_id, start_at, end_at, frequency, page_size, after
+            )
+            payload = await self.async_graphql("getAccountMeasurements", MEASUREMENTS_QUERY, variables)
+            connection = (((payload.get("data") or {}).get("property") or {}).get("measurements") or {})
+            page_edges = connection.get("edges") or []
+            remaining = MAX_MEASUREMENT_POINTS - len(edges)
+            edges.extend(page_edges[:remaining])
+            reported_total = connection.get("totalCount")
+            if isinstance(reported_total, int):
+                total_count = reported_total
+            page_info = connection.get("pageInfo") or {}
+            has_next_page = bool(page_info.get("hasNextPage"))
+            if len(edges) >= MAX_MEASUREMENT_POINTS:
+                return summarize_measurements(
+                    self._measurement_payload(edges, total_count, truncated=has_next_page or len(page_edges) > remaining)
+                )
+            if not has_next_page:
+                return summarize_measurements(self._measurement_payload(edges, total_count, truncated=False))
+            next_cursor = page_info.get("endCursor")
+            if not next_cursor or next_cursor == after:
+                raise OctopusSpainGraphQLError(
+                    "Measurements indicated another page without a usable next cursor"
+                )
+            after = next_cursor
 
     async def async_measurement_dashboard_data(
         self,
         property_id: str | None,
         start_at: datetime,
         end_at: datetime,
-        base_energy_price: float | None,
-        sun_club_discount: float,
-        sun_club_start_hour: int,
-        sun_club_end_hour: int,
+        variable_prices: dict[str, float] | None = None,
+        base_energy_price: float | None = None,
+        sun_club_enabled: bool = False,
+        sun_club_discount: float = 0.0,
+        sun_club_start_hour: int = 12,
+        sun_club_end_hour: int = 18,
         days: int = 31,
     ) -> dict[str, Any]:
         """Fetch daily and hourly measurements enriched for HA dashboards."""
@@ -293,7 +373,9 @@ class OctopusSpainClient:
         estimated = estimated_energy_costs_from_hourly(
             daily.get("points", []),
             hourly.get("points", []),
+            variable_prices=variable_prices,
             base_energy_price=base_energy_price,
+            sun_club_enabled=sun_club_enabled,
             sun_club_discount=sun_club_discount,
             sun_club_start_hour=sun_club_start_hour,
             sun_club_end_hour=sun_club_end_hour,
@@ -350,14 +432,29 @@ class OctopusSpainClient:
                 timeout=30,
             )
             async with response:
-                if response.status in (401, 403):
+                if response.status == 401:
                     raise OctopusSpainAuthError("Octopus rejected the current credentials")
+                if response.status == 403:
+                    raise OctopusSpainPermissionError("Octopus denied this operation")
+                if response.status == 429:
+                    raise OctopusSpainRateLimitError("Octopus rate limit exceeded")
+                if response.status >= 500:
+                    raise OctopusSpainTemporaryError("Octopus is temporarily unavailable")
                 response.raise_for_status()
-                data = await response.json(content_type=None)
+                try:
+                    data = await response.json(content_type=None)
+                except (json.JSONDecodeError, ValueError, TypeError) as err:
+                    _LOGGER.debug(
+                        "Octopus GraphQL returned invalid JSON for %s",
+                        payload.get("operationName"),
+                    )
+                    raise OctopusSpainError("Octopus returned an invalid response") from err
+        except (OctopusSpainAuthError, OctopusSpainPermissionError, OctopusSpainRateLimitError, OctopusSpainTemporaryError):
+            raise
         except ClientResponseError as err:
             _LOGGER.debug("Octopus GraphQL HTTP error for %s: %s", payload.get("operationName"), err.status)
             raise OctopusSpainError(f"Octopus HTTP error {err.status}") from err
-        except ClientError as err:
+        except (ClientError, asyncio.TimeoutError) as err:
             _LOGGER.debug("Octopus GraphQL transport error for %s", payload.get("operationName"))
             raise OctopusSpainError("Cannot connect to Octopus") from err
         return self._handle_graphql_response(payload.get("operationName"), data)
@@ -368,10 +465,23 @@ class OctopusSpainClient:
             return data
         safe_messages = [redact_sensitive_value(error.get("message", "GraphQL error")) for error in errors]
         message = "; ".join(str(item) for item in safe_messages)
+        codes = {
+            str((error.get("extensions") or {}).get("code") or "").upper()
+            for error in errors
+            if isinstance(error, dict)
+        }
         lowered = message.lower()
         _LOGGER.debug("Octopus GraphQL error for %s: %s", operation_name, message)
-        if "auth" in lowered or "token" in lowered or "permission" in lowered or "jwt" in lowered:
+        if codes & {"UNAUTHENTICATED", "INVALID_TOKEN", "JWT_EXPIRED", "INVALID_CREDENTIALS"} or any(
+            marker in lowered for marker in ("jwt has expired", "jwt expired", "invalid token", "authentication failed")
+        ):
             raise OctopusSpainAuthError("Octopus authentication failed")
+        if codes & {"FORBIDDEN", "PERMISSION_DENIED", "UNAUTHORIZED"} or "permission denied" in lowered:
+            raise OctopusSpainPermissionError("Octopus denied this operation")
+        if codes & {"RATE_LIMITED", "TOO_MANY_REQUESTS", "THROTTLED"} or "rate limit" in lowered:
+            raise OctopusSpainRateLimitError("Octopus rate limit exceeded")
+        if codes & {"INTERNAL_SERVER_ERROR", "SERVICE_UNAVAILABLE", "TIMEOUT", "TEMPORARY_ERROR"}:
+            raise OctopusSpainTemporaryError("Octopus is temporarily unavailable")
         raise OctopusSpainGraphQLError(message)
 
     def _token_expires_soon(self) -> bool:
@@ -463,8 +573,8 @@ class OctopusSpainClient:
             self._invoice_id_cache[invoice_hash] = int(raw_invoice_id)
             self._account_number = account_number
             self._ledger_number = ledger_number
-        period_start = self._date_only(node.get("consumptionStartDate"))
-        period_end = self._date_only(node.get("consumptionEndDate"))
+        period_start = self._date_only(node.get("fromDate") or node.get("consumptionStartDate"))
+        period_end = self._date_only(node.get("toDate") or node.get("consumptionEndDate"))
         period_label = _invoice_period_label(period_start, period_end)
         return {
             "index": index,
@@ -473,6 +583,10 @@ class OctopusSpainClient:
             "period_label": period_label,
             "period_start": period_start,
             "period_end": period_end,
+            "issued_date": self._date_only(node.get("issuedDate")),
+            "amount_eur": minor_amount_eur(node.get("invoicedAmount")),
+            "annulled": bool(node.get("annulledBy")),
+            "held": bool(node.get("isHeld")),
             "document_available": bool(pdf_url or raw_invoice_id),
         }
 
@@ -484,17 +598,51 @@ class OctopusSpainClient:
 
     @staticmethod
     def _measurement_variables(
-        property_id: str, start_at: datetime, end_at: datetime, frequency: str, first: int
+        property_id: str,
+        start_at: datetime,
+        end_at: datetime,
+        frequency: str,
+        first: int,
+        after: str | None = None,
     ) -> dict[str, Any]:
         return {
             "propertyId": property_id,
-            "first": max(1, min(first, 366 if frequency == "DAY_INTERVAL" else 744)),
+            "first": max(1, min(first, MEASUREMENT_PAGE_SIZE)),
+            "after": after,
             "startAt": _iso_z(start_at),
             "endAt": _iso_z(end_at),
             "timezone": "Europe/Madrid",
             "utilityFilters": [
                 {"electricityFilters": {"readingDirection": "CONSUMPTION", "readingFrequencyType": frequency}}
             ],
+        }
+
+    @staticmethod
+    def _credits_payload(edges: list[dict[str, Any]], *, truncated: bool) -> dict[str, Any]:
+        return {
+            "data": {
+                "account": {
+                    "ledgers": [
+                        {"transactions": {"edges": edges, "truncated": truncated}}
+                    ]
+                }
+            }
+        }
+
+    @staticmethod
+    def _measurement_payload(
+        edges: list[dict[str, Any]], total_count: int | None, *, truncated: bool
+    ) -> dict[str, Any]:
+        return {
+            "data": {
+                "property": {
+                    "measurements": {
+                        "edges": edges,
+                        "totalCount": total_count,
+                        "truncated": truncated,
+                    }
+                }
+            }
         }
 
     select_default_account = staticmethod(select_default_account)

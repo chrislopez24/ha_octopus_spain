@@ -22,6 +22,7 @@ from .measurements import (
     current_month_estimated_cost,
     current_month_period_consumption,
     latest_period_consumption,
+    spanish_period,
 )
 
 MADRID = ZoneInfo("Europe/Madrid")
@@ -70,13 +71,17 @@ def _measurement_value(key: str) -> Callable[[OctopusSpainCoordinator], Any]:
 
 
 def _current_energy_price(coordinator: OctopusSpainCoordinator) -> float | None:
-    base_price = (coordinator.data.tariff if coordinator.data else {}).get("base_energy_price")
-    if base_price is None:
-        return None
+    tariff = coordinator.data.tariff if coordinator.data else {}
     now = datetime.now(MADRID)
-    if SUN_CLUB_START_HOUR <= now.hour < SUN_CLUB_END_HOUR:
-        return round(float(base_price) * (1 - SUN_CLUB_DISCOUNT), 6)
-    return base_price
+    prices = tariff.get("period_prices") or {}
+    price = prices.get(spanish_period(now))
+    if price is None:
+        price = tariff.get("base_energy_price")
+    if price is None:
+        return None
+    if tariff.get("sun_club_enabled") and SUN_CLUB_START_HOUR <= now.hour < SUN_CLUB_END_HOUR:
+        return round(float(price) * (1 - SUN_CLUB_DISCOUNT), 6)
+    return price
 
 
 def _invoice_count(coordinator: OctopusSpainCoordinator) -> int:
@@ -102,6 +107,8 @@ def _measurement_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
         "latest_period_start": measurements.get("latest_period_start"),
         "latest_period_end": measurements.get("latest_period_end"),
         "api_cost_available": measurements.get("api_cost_available"),
+        "total_count": measurements.get("total_count"),
+        "truncated": measurements.get("truncated", False),
         "cost_preference": measurements.get("cost_preference"),
         "estimated_cost_source": measurements.get("estimated_cost_source"),
         "estimated_cost_includes_power": measurements.get("estimated_cost_includes_power"),
@@ -135,6 +142,7 @@ def _credit_value(reason_code: str) -> Callable[[OctopusSpainCoordinator], Any]:
 def _credit_attrs(coordinator: OctopusSpainCoordinator) -> dict[str, Any]:
     credits = coordinator.data.credits if coordinator.data else {}
     return {
+        "truncated": credits.get("truncated", False),
         "reason_code_counts": credits.get("reason_code_counts", {}),
         "reason_code_amounts": credits.get("reason_code_amounts", {}),
         "recent_credits": credits.get("recent_credits", []),

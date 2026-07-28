@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 import logging
+from typing import Any, Awaitable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -96,24 +97,40 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
         try:
             agreement = await self.client.async_agreement(self.selection.agreement_id)
             billing = await self.client.async_billing_info(self.selection.account_number)
-            invoices = await self.client.async_bills(
-                self.selection.account_number,
-                self.selection.ledger_number,
-                INVOICE_CACHE_LIMIT,
+            invoices = await self._optional_data(
+                "invoices",
+                self.client.async_bills(
+                    self.selection.account_number,
+                    self.selection.ledger_number,
+                    INVOICE_CACHE_LIMIT,
+                ),
+                [],
             )
-            credits = await self.client.async_credits(
-                self.selection.account_number,
-                self.selection.ledger_number,
+            credits = await self._optional_data(
+                "credits",
+                self.client.async_credits(
+                    self.selection.account_number,
+                    self.selection.ledger_number,
+                ),
+                {},
             )
-            solar_wallet = await self.client.async_solar_wallet(
-                self.selection.account_number,
-                self.selection.ledger_number,
+            solar_wallet = await self._optional_data(
+                "solar_wallet",
+                self.client.async_solar_wallet(
+                    self.selection.account_number,
+                    self.selection.ledger_number,
+                ),
+                {"available": False, "error": "unavailable"},
             )
-            intelligent_go = await self.client.async_intelligent_go(
-                self.selection.account_number,
-                self.selection.property_id,
+            intelligent_go = await self._optional_data(
+                "intelligent_go",
+                self.client.async_intelligent_go(
+                    self.selection.account_number,
+                    self.selection.property_id,
+                ),
+                {"available": False, "error": "unavailable"},
             )
-            base_energy_price = self.client.build_data(
+            tariff = self.client.build_data(
                 self.selection,
                 agreement,
                 billing,
@@ -122,18 +139,20 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
                 measurements={},
                 solar_wallet=solar_wallet,
                 intelligent_go=intelligent_go,
-            ).tariff.get("base_energy_price")
+            ).tariff
             end_at = datetime.combine(datetime.now(MADRID).date(), time.min, MADRID)
             start_at = end_at - timedelta(days=31)
             measurements = await self.client.async_measurement_dashboard_data(
                 self.selection.property_id,
                 start_at,
                 end_at,
-                base_energy_price,
-                SUN_CLUB_DISCOUNT,
-                SUN_CLUB_START_HOUR,
-                SUN_CLUB_END_HOUR,
-                31,
+                variable_prices=tariff.get("period_prices"),
+                base_energy_price=tariff.get("base_energy_price"),
+                sun_club_enabled=bool(tariff.get("sun_club_enabled")),
+                sun_club_discount=SUN_CLUB_DISCOUNT,
+                sun_club_start_hour=SUN_CLUB_START_HOUR,
+                sun_club_end_hour=SUN_CLUB_END_HOUR,
+                days=31,
             )
         except OctopusSpainAuthError as err:
             raise ConfigEntryAuthFailed("Octopus credentials need reauthentication") from err
@@ -149,6 +168,31 @@ class OctopusSpainCoordinator(DataUpdateCoordinator[OctopusData]):
             solar_wallet=solar_wallet,
             intelligent_go=intelligent_go,
         )
+
+    async def _optional_data(
+        self, name: str, request: Awaitable[Any], empty: Any
+    ) -> Any:
+        """Return optional data or retain its last valid value on failure."""
+
+        try:
+            return await request
+        except OctopusSpainAuthError:
+            raise
+        except OctopusSpainError as err:
+            _LOGGER.warning(
+                "Optional Octopus data %s is unavailable (%s)",
+                name,
+                err.__class__.__name__,
+            )
+            previous = self.data
+            value = getattr(previous, name, None) if previous is not None else None
+            if value:
+                retained = value.copy() if isinstance(value, dict) else list(value)
+                if isinstance(retained, dict):
+                    retained["stale"] = True
+                    retained["error"] = "unavailable"
+                return retained
+            return empty.copy() if isinstance(empty, (dict, list)) else empty
 
     @staticmethod
     def _selection_from_entry(entry: ConfigEntry):

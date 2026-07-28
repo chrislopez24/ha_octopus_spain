@@ -2,7 +2,7 @@
 
 Integración custom para Home Assistant que conecta con Octopus Energy Spain y expone tarifa, precios, créditos, facturas y consumo eléctrico como entidades listas para Lovelace, automatizaciones y servicios con respuesta.
 
-> Versión actual: `0.0.10`. Octopus Energy Spain usa una API GraphQL privada de Kraken, sin contrato público ni versionado para terceros. La integración intenta ser prudente con los datos y resistente a cambios razonables, pero algún campo upstream puede cambiar sin aviso.
+> Versión actual: `0.0.11`. Octopus Energy Spain usa una API GraphQL privada de Kraken, sin contrato público ni versionado para terceros. La integración intenta ser prudente con los datos y resistente a cambios razonables, pero algún campo upstream puede cambiar sin aviso.
 >
 > Esta integracion no ha sido probada en todas las modalidades (Solar Wallet, Intelligent Go...) por lo que es posiblr que haga falta adaptarla para darles soporte. Se añaden diversas tool para mappear los diferentes campos de la APi de GraphQL con el fin de facilitar este trabajo.
 
@@ -11,12 +11,12 @@ Integración custom para Home Assistant que conecta con Octopus Energy Spain y e
 ## Qué aporta
 
 - Tarifa activa, código de producto, fecha de validez y precios de energía/potencia.
-- Precio actual de energía con la ventana Sun Club aplicada entre las 12:00 y las 18:00 en `Europe/Madrid`.
+- Precio actual de energía según el periodo activo Punta/Llano/Valle, con la ventana Sun Club aplicada entre las 12:00 y las 18:00 en `Europe/Madrid` únicamente cuando el contrato es elegible.
 - Saldo eléctrico, créditos Sun Club y créditos referral.
 - Facturas recientes con descarga PDF bajo demanda desde Home Assistant.
-- Consumo diario y horario, último día completo disponible, medias de 7/31 días y consumo por periodos `Punta`, `Llano` y `Valle`.
+- Consumo diario y horario paginado, último día completo disponible, medias de 7/31 días y consumo por periodos `Punta`, `Llano` y `Valle`, con indicadores de total y truncado.
 - Coste estimado cuando Octopus no devuelve coste API, con atributos que indican que no incluye potencia, impuestos ni ajustes finales de factura.
-- Series ya preparadas en atributos para dashboards con gráficas.
+- Series ya preparadas en atributos para dashboards con gráficas, más facturas recientes y descarga PDF bajo demanda.
 
 La integración no crea dashboards automáticamente y no modifica el panel de energía de Home Assistant. Su trabajo es exponer datos; tú decides cómo pintarlos.
 
@@ -67,7 +67,7 @@ La integración incluye una card Lovelace propia para listar facturas y descarga
 Añade el recurso como **JavaScript module**:
 
 ```text
-/octopus_spain/octopus-invoice-card.js?v=0.0.10
+/octopus_spain/octopus-invoice-card.js?v=0.0.11
 ```
 
 Y usa la card:
@@ -494,6 +494,8 @@ data:
   end_date: "2026-05-01"
   frequency: DAY_INTERVAL
 ```
+
+El rango es **semiabierto**: `start_date` se incluye y `end_date` se excluye. Por tanto, el ejemplo anterior devuelve abril completo (desde el 1 de abril a las 00:00 hasta, pero sin incluir, el 1 de mayo a las 00:00), también durante cambios DST. Si hay varias entradas de la integración, añade `config_entry_id` usando el selector del servicio.
 
 ## Privacidad
 
